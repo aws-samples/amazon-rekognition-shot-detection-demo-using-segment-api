@@ -1,0 +1,16 @@
+{
+  "name": "aws-sdk-bundle",
+  "version": "2.680.0",
+  "description": "copy pre-built aws-sdk js script",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"bundle exists\" && exit 0",
+    "build:clean": "rm -rf dist && mkdir -p dist/js",
+    "build:copy": "cp -v ./aws-sdk-2.680.0.min.js ./dist/js/aws-sdk.min.js",
+    "build": "npm-run-all -s build:clean build:copy"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {}
+}

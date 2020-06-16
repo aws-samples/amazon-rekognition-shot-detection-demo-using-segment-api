@@ -1,0 +1,114 @@
+{
+    "StartAt": "Run mediainfo",
+    "States": {
+        "Run mediainfo": {
+            "Type": "Task",
+            "Resource": "${x1}",
+            "Parameters": {
+                "state": "run-mediainfo",
+                "input.$": "$.input"
+            },
+            "Retry": [
+                {
+                    "ErrorEquals": [
+                        "States.ALL"
+                    ],
+                    "IntervalSeconds": 1,
+                    "MaxAttempts": 2,
+                    "BackoffRate": 1.2
+                }
+            ],
+            "Next": "Start mediaconvert and wait"
+        },
+        "Start mediaconvert and wait": {
+            "Type": "Task",
+            "Resource":"arn:aws:states:::lambda:invoke.waitForTaskToken",
+            "Parameters": {
+                "FunctionName": "${a0}",
+                "Payload": {
+                    "token.$":"$$.Task.Token",
+                    "state": "start-mediaconvert",
+                    "input.$": "$.input",
+                    "output.$": "$.output"
+                }
+            },
+            "TimeoutSeconds": 10800,
+            "Retry": [
+                {
+                    "ErrorEquals": [
+                        "States.ALL"
+                    ],
+                    "IntervalSeconds": 1,
+                    "MaxAttempts": 4,
+                    "BackoffRate": 1.2
+                }
+            ],
+            "Next": "Start segment detection and wait"
+        },
+        "Start segment detection and wait": {
+            "Type": "Task",
+            "Resource":"arn:aws:states:::lambda:invoke.waitForTaskToken",
+            "Parameters": {
+                "FunctionName": "${a0}",
+                "Payload": {
+                    "token.$":"$$.Task.Token",
+                    "state": "start-segment-detection",
+                    "input.$": "$.input",
+                    "output.$": "$.output"
+                }
+            },
+            "TimeoutSeconds": 10800,
+            "Retry": [
+                {
+                    "ErrorEquals": [
+                        "States.ALL"
+                    ],
+                    "IntervalSeconds": 1,
+                    "MaxAttempts": 4,
+                    "BackoffRate": 1.2
+                }
+            ],
+            "Next": "Collect detection results"
+        },
+        "Collect detection results": {
+            "Type": "Task",
+            "Resource": "${x0}",
+            "Parameters": {
+                "state": "collect-detection-results",
+                "input.$": "$.input",
+                "output.$": "$.output"
+            },
+            "Retry": [
+                {
+                    "ErrorEquals": [
+                        "States.ALL"
+                    ],
+                    "IntervalSeconds": 1,
+                    "MaxAttempts": 6,
+                    "BackoffRate": 1.1
+                }
+            ],
+            "Next": "Create timeline"
+        },
+        "Create timeline": {
+            "Type": "Task",
+            "Resource": "${x0}",
+            "Parameters": {
+                "state": "create-timeline",
+                "input.$": "$.input",
+                "output.$": "$.output"
+            },
+            "Retry": [
+                {
+                    "ErrorEquals": [
+                        "States.ALL"
+                    ],
+                    "IntervalSeconds": 1,
+                    "MaxAttempts": 6,
+                    "BackoffRate": 1.1
+                }
+            ],
+            "End": true
+        }
+    }
+}

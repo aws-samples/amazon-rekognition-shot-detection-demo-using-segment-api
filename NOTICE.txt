@@ -1,0 +1,23 @@
+Amazon Rekognition Shot Detection Demo Using Segment API
+
+Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+SPDX-License-Identifier: MIT-0
+
+**********************
+THIRD PARTY COMPONENTS
+**********************
+This software includes third party software subject to the following copyrights:
+
+AWS SDK under the Apache License Version 2.0
+AWS Amplify under the Apache License Version 2.0
+JQuery under the Massachusetts Institute of Technology (MIT) license
+Bootstrap under the Massachusetts Institute of Technology (MIT) license
+Popper under the Massachusetts Institute of Technology (MIT) license
+adm-zip under the Massachusetts Institute of Technology (MIT) license
+Mime under the Massachusetts Institute of Technology (MIT) license
+Crypto-js under the Massachusetts Institute of Technology (MIT) license
+Fontawesome Fonts under SIL OFL 1.1 license
+VideoJS under the Apache License Version 2.0
+Video.js Markers under the Massachusetts Institute of Technology (MIT) license
+Mediainfo under the BSD 2-Clause License
+edl-composer by pietrop under the Massachusetts Institute of Technology (MIT) license
