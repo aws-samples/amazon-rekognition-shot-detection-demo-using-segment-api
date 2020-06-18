@@ -74,7 +74,7 @@ class StateMediaConvert extends mxBaseState(class {}) {
             FilterStrength: 0,
             DeblockFilter: 'DISABLED',
             DenoiseFilter: 'DISABLED',
-            TimecodeSource: 'ZEROBASED',
+            TimecodeSource: 'EMBEDDED',
             FileInput: `s3://${this.input.bucket}/${this.input.key}`,
           },
         ],
@@ -84,7 +84,7 @@ class StateMediaConvert extends mxBaseState(class {}) {
   }
 
   makeChannelMappings() {
-    const audio = this.output[States.RunMediainfo].audio || [];
+    const audio = this.output[States.RunMediainfo].mediainfo.audio || [];
     const name = 'Audio Selector 1';
     let tracks = (audio.length === 1)
       ? audio[0]

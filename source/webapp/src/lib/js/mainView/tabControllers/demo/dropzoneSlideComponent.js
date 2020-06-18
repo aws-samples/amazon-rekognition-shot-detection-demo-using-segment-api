@@ -37,6 +37,23 @@ export default class DropzoneSlideComponent extends mxReadable(mxDropzone(BaseSl
     };
   }
 
+  static get SupportedFileExtensions() {
+    return [
+      '.mp4',
+      '.m4v',
+      '.mov',
+      '.mxf',
+      '.mpg',
+      '.mpeg',
+      '.m2ts',
+      '.ts',
+      '.avi',
+      '.wmv',
+      '.mkv',
+      '.webm',
+    ];
+  }
+
   get stateMachineWatchDog() {
     return this.$stateMachineWatchDog;
   }
@@ -177,6 +194,21 @@ export default class DropzoneSlideComponent extends mxReadable(mxDropzone(BaseSl
     this.stateMachineWatchDog.getCompletedExecutions().forEach(x =>
       ul.append(this.createCompletedListItem(x)));
     return details.append(ul);
+  }
+
+  canSupport(file) {
+    if (!file) {
+      return false;
+    }
+    if (typeof file === 'string') {
+      const ext = file.substring(file.lastIndexOf('.'), file.length).toLowerCase();
+      return DropzoneSlideComponent.SupportedFileExtensions.indexOf(ext) >= 0;
+    }
+    const mime = (file || {}).type || (file || {}).mime;
+    if (mime) {
+      return mime.split('/')[0] === 'video';
+    }
+    return this.canSupport((file || {}).name || (file || {}).key);
   }
 
   async processDropEvent(event) {

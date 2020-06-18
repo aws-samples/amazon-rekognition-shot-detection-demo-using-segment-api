@@ -30,7 +30,9 @@
     "no-plusplus": 0,
     "one-var": 0,
     "one-var-declaration-per-line": 0,
-    "no-console": 0
+    "no-console": 0,
+    "global-require": 0,
+    "no-continue": 0
   },
   "env": {
     "es6": true,

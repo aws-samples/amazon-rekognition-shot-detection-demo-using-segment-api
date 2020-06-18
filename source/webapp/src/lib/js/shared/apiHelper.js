@@ -7,6 +7,7 @@ export default class ApiHelper {
   static get Endpoints() {
     return {
       Analyze: `${SolutionManifest.ApiEndpoint}/analyze`,
+      Convert: `${SolutionManifest.ApiEndpoint}/convert`,
     };
   }
 
@@ -16,5 +17,9 @@ export default class ApiHelper {
 
   static async getExecution(query) {
     return AppUtils.authHttpRequest('GET', ApiHelper.Endpoints.Analyze, query);
+  }
+
+  static async startConversion(body) {
+    return AppUtils.authHttpRequest('POST', ApiHelper.Endpoints.Convert, undefined, body);
   }
 }

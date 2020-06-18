@@ -16,6 +16,12 @@ This demo uses [Blackmagic Design Davinci Resolve 16](https://www.blackmagicdesi
 
 ![Export and Import EDL](./deployment/images/export-import-edl.gif)
 
+
+## Simple convert JSON to EDL
+The demo solution also exposes the web user interface (SimpConvert tab) to convert the JSON result from Amazon Rekognition Segment API into Edit Decision List (EDL) without running the analysis process.
+
+![Simple convert JSON to EDL](./deployment/images/simple-convert.gif)
+
 ___
 
 # Architecture overview
@@ -48,6 +54,7 @@ The solution is deployed using an AWS CloudFormation template with AWS Lambda ba
 |:-----------|:----------------------------|
 | EU (Ireland) |<a href="https://console.aws.amazon.com/cloudformation/home?region=eu-west-1#/stacks/new?stackName=shot-detection&templateURL=https%3A%2F%2Fml-specialist-sa-demo-eu-west-1.s3-eu-west-1.amazonaws.com%2Fshot-detection-demo%2F1.0.0%2Fshot-detection-demo.template" target="_blank">Launch stack</a> |
 | US East (N. Virginia) |<a href="https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/new?stackName=shot-detection&templateURL=https%3A%2F%2Fml-specialist-sa-demo-us-east-1.s3.amazonaws.com%2Fshot-detection-demo%2F1.0.0%2Fshot-detection-demo.template" target="_blank">Launch stack</a> |
+| US East (Ohio) |<a href="https://console.aws.amazon.com/cloudformation/home?region=us-east-2#/stacks/new?stackName=shot-detection&templateURL=https%3A%2F%2Fml-specialist-sa-demo-us-east-2.s3.amazonaws.com%2Fshot-detection-demo%2F1.0.0%2Fshot-detection-demo.template" target="_blank">Launch stack</a> |
 | US West (Oregon) |<a href="https://console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/new?stackName=shot-detection&templateURL=https%3A%2F%2Fml-specialist-sa-demo-us-west-2.s3-us-west-2.amazonaws.com%2Fshot-detection-demo%2F1.0.0%2Fshot-detection-demo.template" target="_blank">Launch stack</a> |
 
 * Under **Create stack** page, click **Next** to continue
@@ -151,7 +158,6 @@ Make sure you see the following files under **/shot-detection-demo/1.0.0/**
 | shot-detection-demo-api-1.0.0.zip | a package of lambad functiom that handles GET, POST, and OPTIONS requests from Amazon API Gateway endpoint |
 | shot-detection-demo-core-lib-1.0.0.zip | a lambda layer package of the core library shared among other lambda functions |
 | shot-detection-demo-mediainfo-1.0.0.zip | a lambda layer package of mediainfo used to extract media information of uploaded videos |
-| shot-detection-demo-timeline-lib-1.0.0.zip | a lambda layer package of timeline library used to create Edit Decision List (EDL). The layer is used by **create-timeline state** of the state machine |
 | shot-detection-demo-step-1.0.0.zip | a package of lamba function contained the actual implementation of each state of AWS Step Functions state machine |
 | shot-detection-demo-status-updater-1.0.0.zip | a package of lambda function to receive events from Amazon CloudWatch Event and Amazon Simple Notification Service (SNS) and to send task result signaling the AWS Step Functions state machine execution when a task is completed or failed. |
 | shot-detection-demo-webapp-1.0.0.zip | a package of the webapp code |
@@ -267,7 +273,9 @@ The cost of Amazon Cognito and AWS CloudFormation are not included in the estima
 * Total cost to try out the demo solution for an one-hour long HD video is $7.67.
 * The Upload (Amazon S3 Storage) cost ($0.0828) is a monthly cost.
 * The demo uses both Shot Segment and Technical Cues features. Therefore, the detection cost is multiplied by two.
-* The demo uses AWS Elemental MediaConvert Professional Tier. 
+* The demo uses AWS Elemental MediaConvert Professional Tier features such as:
+  * [Quality Defined Variable Bitrat (QVBR)](https://aws.amazon.com/media/tech/quality-defined-variable-bitrate-qvbr/) to optimize quality and file size and
+  * QuickTime output format to carry SMPTE Timecode from original content
 
 ___
 

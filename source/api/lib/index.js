@@ -1,6 +1,10 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: MIT-0
 const AWS = require('aws-sdk');
+const PATH = require('path');
+const {
+  EDLComposer,
+} = require('core-lib');
 const {
   mxValidation,
 } = require('./mxValidation');
@@ -51,6 +55,7 @@ class ApiRequest extends mxValidation(class {}) {
   static get Operations() {
     return {
       Analyze: 'analyze',
+      Convert: 'convert',
     };
   }
 
@@ -141,6 +146,9 @@ class ApiRequest extends mxValidation(class {}) {
     const op = this.pathParameters.operation;
     if (op === ApiRequest.Operations.Analyze) {
       return this.onPostAnalysis();
+    }
+    if (op === ApiRequest.Operations.Convert) {
+      return this.onPostConversion();
     }
     throw new Error('operation not supported');
   }
@@ -260,6 +268,27 @@ class ApiRequest extends mxValidation(class {}) {
     return this.onSucceeded(response);
   }
 
+  async onPostConversion() {
+    let missing = [
+      'name',
+      'data',
+    ].filter(x => this.body[x] === undefined);
+    if (missing.length) {
+      throw new Error(`missing ${missing.join(', ')}`);
+    }
+
+    missing = [
+      'VideoMetadata',
+      'Segments',
+    ].filter(x => this.body.data[x] === undefined);
+    if (missing.length) {
+      throw new Error('invalid Segment JSON format');
+    }
+
+    const edl = this.createEDLFile(this.body.name, this.body.data);
+    return this.onSucceeded(edl);
+  }
+
   async startExecution(arn, data) {
     const step = new AWS.StepFunctions({
       apiVersion: '2016-11-23',
@@ -319,6 +348,31 @@ class ApiRequest extends mxValidation(class {}) {
     return ((state || {}).stateEnteredEventDetails)
       ? state.stateEnteredEventDetails.name
       : undefined;
+  }
+
+  createEDLFile(name, data) {
+    const parsed = PATH.parse(name);
+    let idx = 0;
+    const events = [];
+    while (data.Segments.length) {
+      const segment = data.Segments.shift();
+      if (segment.Type !== 'SHOT') {
+        continue;
+      }
+      events.push({
+        id: idx + 1,
+        startTime: segment.StartTimecodeSMPTE,
+        endTime: segment.EndTimecodeSMPTE,
+        reelName: `Shot ${segment.ShotSegment.Index.toString().padStart(3, '0')}`,
+        clipName: parsed.name,
+      });
+      idx++;
+    }
+    const edl = new EDLComposer({
+      title: parsed.name.replace(/[\W_]+/g, ' '),
+      events,
+    });
+    return edl.compose();
   }
 }
 

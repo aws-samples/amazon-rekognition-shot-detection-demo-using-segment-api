@@ -103,6 +103,8 @@ function copy_standard_documents() {
     "LICENSE.txt" \
     "NOTICE.txt" \
     "README.md" \
+    ".gitignore" \
+    ".tool-versions" \
   )
   pushd "$DEPLOYMENT_DIR"/..
   pwd
@@ -133,7 +135,7 @@ function create_github_zip() {
   echo "------------------------------------------------------------------------------"
   cd "$OPENSRC_DIST_DIR" || exit
   # zip -q -r9 ../${SOLUTION}.zip * .github .gitignore .tool-versions
-  zip -q -r9 ../${SOLUTION}.zip * .github
+  zip -q -r9 ../${SOLUTION}.zip * .github .gitignore .tool-versions
   cd "$DEPLOYMENT_DIR" || exit
   rm -rf "$OPENSRC_DIST_DIR"
 }

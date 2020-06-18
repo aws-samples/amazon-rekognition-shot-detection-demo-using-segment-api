@@ -35,7 +35,8 @@ The MP4 output format is as follows:
 | Name | Description |
 |:-----|:------------|
 | Resolution | 960x540 |
-| Video Encode | H.264@1.6Mbps, High Profile, VBR |
+| Container | QuickTime |
+| Video Encode | H.264@2Mbps, High Profile, [QVBR](https://aws.amazon.com/media/tech/quality-defined-variable-bitrate-qvbr/) |
 | Framerate | Follow input |
 | GOP | 2 seconds |
 | Audio Encode | AAC@96Kbp@48kHz |

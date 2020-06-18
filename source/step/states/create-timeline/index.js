@@ -4,10 +4,8 @@ const PATH = require('path');
 const {
   States,
   S3Utils,
-} = require('core-lib');
-const {
   EDLComposer,
-} = require('timeline-lib');
+} = require('core-lib');
 const WebVttTrack = require('./webVttTrack');
 const mxBaseState = require('../../shared/mxBaseState');
 
@@ -60,6 +58,8 @@ class StateCreateTimeline extends mxBaseState(class {}) {
           confidence: segment.TechnicalCueSegment.Confidence,
           begin: segment.StartTimestampMillis,
           end: segment.EndTimestampMillis,
+          smpteBegin: segment.StartTimecodeSMPTE,
+          smpteEnd: segment.EndTimecodeSMPTE,
         });
       } else if (segment.Type === 'SHOT') {
         shots.push({
@@ -67,6 +67,8 @@ class StateCreateTimeline extends mxBaseState(class {}) {
           confidence: segment.ShotSegment.Confidence,
           begin: segment.StartTimestampMillis,
           end: segment.EndTimestampMillis,
+          smpteBegin: segment.StartTimecodeSMPTE,
+          smpteEnd: segment.EndTimecodeSMPTE,
         });
       }
     }
@@ -92,23 +94,16 @@ class StateCreateTimeline extends mxBaseState(class {}) {
 
   async createEDLFile(shots) {
     const parsed = PATH.parse(this.input.key);
-    const mediainfo = this.output[States.RunMediainfo].mediainfo;
-    const fps = ((mediainfo.video || [])[0] || {}).frameRate
-      || ((mediainfo.container || [])[0] || {}).frameRate
-      || 25;
     const events = [];
     for (let i = 0; i < shots.length; i++) {
       events.push({
         id: i + 1,
-        startTime: shots[i].begin / 1000,
-        endTime: shots[i].end / 1000,
         reelName: shots[i].name,
-        // reelName: 'NA',
+        startTime: shots[i].smpteBegin,
+        endTime: shots[i].smpteEnd,
         clipName: parsed.base,
-        fps,
       });
     }
-
     const edl = new EDLComposer({
       title: parsed.name.replace(/[\W_]+/g, ' '),
       events,

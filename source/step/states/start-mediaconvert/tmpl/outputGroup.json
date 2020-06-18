@@ -5,11 +5,13 @@
     "Outputs": [
       {
         "ContainerSettings": {
-          "Container": "MP4",
-          "Mp4Settings": {
+          "Container": "MOV",
+          "MovSettings": {
+            "ClapAtom": "EXCLUDE",
             "CslgAtom": "INCLUDE",
-            "FreeSpaceBox": "EXCLUDE",
-            "MoovPlacement": "PROGRESSIVE_DOWNLOAD"
+            "PaddingControl": "OMNEON",
+            "Reference": "SELF_CONTAINED",
+            "Mpeg2FourCCControl": "MPEG"
           }
         },
         "VideoDescription": {
@@ -23,7 +25,7 @@
               "Control": "NORMAL"
             }
           },
-          "TimecodeInsertion": "DISABLED",
+          "TimecodeInsertion": "PIC_TIMING_SEI",
           "AntiAlias": "ENABLED",
           "Sharpness": 50,
           "CodecSettings": {
@@ -37,14 +39,18 @@
               "GopSize": 2,
               "Slices": 1,
               "GopBReference": "DISABLED",
+              "MaxBitrate": 1800000,
               "SlowPal": "DISABLED",
               "SpatialAdaptiveQuantization": "ENABLED",
               "TemporalAdaptiveQuantization": "ENABLED",
               "FlickerAdaptiveQuantization": "DISABLED",
               "EntropyEncoding": "CABAC",
-              "Bitrate": 1600000,
               "FramerateControl": "INITIALIZE_FROM_SOURCE",
-              "RateControlMode": "VBR",
+              "RateControlMode": "QVBR",
+              "QvbrSettings": {
+                "QvbrQualityLevel": 7,
+                "QvbrQualityLevelFineTune": 0
+              },
               "CodecProfile": "HIGH",
               "Telecine": "NONE",
               "MinIInterval": 0,
@@ -54,7 +60,7 @@
               "SceneChangeDetect": "ENABLED",
               "QualityTuningLevel": "SINGLE_PASS",
               "FramerateConversionAlgorithm": "DUPLICATE_DROP",
-              "UnregisteredSeiTimecode": "DISABLED",
+              "UnregisteredSeiTimecode": "ENABLED",
               "GopSizeUnits": "SECONDS",
               "ParControl": "INITIALIZE_FROM_SOURCE",
               "NumberBFramesBetweenReferenceFrames": 2,

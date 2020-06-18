@@ -20,6 +20,10 @@ export default Base => class extends Base {
     this.$group = val;
   }
 
+  canSupport(file) {
+    return true;
+  }
+
   createDropzone(message) {
     const background = $('<div/>').addClass('d-flex justify-content-center dropzone-bg')
       .append($('<span/>').addClass('align-self-center')
@@ -92,7 +96,7 @@ export default Base => class extends Base {
     return new Promise((resolve, reject) => {
       entry.file(
         (file) =>
-          resolve((FileItem.canSupport(file))
+          resolve((this.canSupport(file))
             ? new FileItem(entry.fullPath, file, this.group)
             : undefined),
         () =>

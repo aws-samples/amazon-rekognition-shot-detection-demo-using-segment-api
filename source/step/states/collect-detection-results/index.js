@@ -74,6 +74,9 @@ class StateCollectDetectionResults extends mxBaseState(class {}) {
     const name = `${String(idx).padStart(8, '0')}.json`;
     const body = {
       Segments: accumulated,
+      VideoMetadata: response.VideoMetadata,
+      AudioMetadata: response.AudioMetadata,
+      SelectedSegmentTypes: response.SelectedSegmentTypes,
     };
     await S3Utils.upload(bucket, PATH.join(prefix, name), body, {
       ContentType: 'application/json',

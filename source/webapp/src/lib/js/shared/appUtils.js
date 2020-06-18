@@ -52,7 +52,12 @@ export default class AppUtils extends mxReadable(class {}) {
       request.onreadystatechange = () => {
         if (request.readyState === XMLHttpRequest.DONE) {
           if (request.status === 200) {
-            resolve(JSON.parse(request.responseText));
+            try {
+              const parsed = JSON.parse(request.responseText);
+              resolve(parsed);
+            } catch (e) {
+              resolve(request.responseText);
+            }
           } else if (request.status >= 400) {
             reject(new Error(`${request.status || 'Error'} - ${method} ${request.responseURL || endpoint}`));
           }

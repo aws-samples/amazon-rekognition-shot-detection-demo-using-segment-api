@@ -42,19 +42,6 @@ class BaseFile {
     };
   }
 
-  static get SupportedFileExtensions() {
-    return [
-      '.mpg',
-      '.mpeg',
-      '.ts',
-      '.mp4',
-      '.m4v',
-      '.mov',
-      '.avi',
-      '.mxf',
-    ];
-  }
-
   get displayName() {
     return this.$displayName;
   }
@@ -82,21 +69,6 @@ class BaseFile {
   get basename() {
     return this.$basename;
   }
-
-  static canSupport(file) {
-    if (!file) {
-      return false;
-    }
-    if (typeof file === 'string') {
-      const ext = file.substring(file.lastIndexOf('.'), file.length).toLowerCase();
-      return BaseFile.SupportedFileExtensions.indexOf(ext) >= 0;
-    }
-    const mime = (file || {}).type || (file || {}).mime;
-    if (mime) {
-      return mime.split('/')[0] === 'video';
-    }
-    return BaseFile.canSupport((file || {}).name || (file || {}).key);
-  }
 }
 
 export default class FileItem extends mxReadable(BaseFile) {
@@ -112,6 +84,10 @@ export default class FileItem extends mxReadable(BaseFile) {
 
   get file() {
     return this.$file;
+  }
+
+  get name() {
+    return this.file.name;
   }
 
   get dataUrl() {
@@ -265,5 +241,13 @@ export default class FileItem extends mxReadable(BaseFile) {
       partSize: FileItem.Constants.Multipart.PartSize,
       queueSize: FileItem.Constants.Multipart.MaxConcurrentUpload,
     }).promise();
+  }
+
+  async readAsText() {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (data) => resolve(reader.result);
+      reader.readAsText(this.file, 'utf8');
+    });
   }
 }

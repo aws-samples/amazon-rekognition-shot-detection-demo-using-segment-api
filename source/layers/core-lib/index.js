@@ -6,6 +6,7 @@ const JsonUtils = require('./lib/jsonUtils');
 const DB = require('./lib/db');
 const ServiceToken = require('./lib/serviceToken');
 const AuthRequest = require('./lib/authRequest');
+const EDLComposer = require('./lib/edlComposer');
 
 module.exports = {
   States,
@@ -14,4 +15,5 @@ module.exports = {
   DB,
   ServiceToken,
   AuthRequest,
+  EDLComposer,
 };

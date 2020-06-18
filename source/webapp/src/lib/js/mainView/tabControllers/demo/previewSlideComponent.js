@@ -420,14 +420,8 @@ export default class PreviewSlideComponent extends mxReadable(BaseSlideComponent
     const overall = $('<details/>').addClass('mt-4')
       .append($('<summary/>').addClass('lead-sm')
         .append(Localization.Messages.RekognitionVideo));
-    const execution = $('<a/>').addClass('badge badge-pill badge-primary mr-1 mb-1 lead-xs')
-      .attr('href', AWSConsoleMediaConvert.getJobLink(state.jobId))
-      .attr('target', '_blank')
-      .attr('data-toggle', 'tooltip')
-      .attr('data-placement', 'bottom')
-      .attr('title', Localization.Tooltips.ViewOnAWSConsole)
-      .html(state.jobId)
-      .tooltip();
+    const execution = $('<span/>').addClass('badge badge-pill badge-light mr-1 mb-1 lead-xs')
+      .html(state.jobId);
     const status = $('<span/>').addClass('badge badge-pill badge-success')
       .addClass('lead-xxs')
       .append(state.status);
@@ -604,7 +598,6 @@ export default class PreviewSlideComponent extends mxReadable(BaseSlideComponent
       ? this.trackLoad(label)
       : this;
   }
-
 
   trackLoadedEvent(track) {
     this.trackCached[track.label].loaded = true;

@@ -18,7 +18,6 @@
   "license": "MIT-0",
   "devDependencies": {
     "mediainfo": "file:../layers/mediainfo",
-    "core-lib": "file:../layers/core-lib",
-    "timeline-lib": "file:../layers/timeline-lib"
+    "core-lib": "file:../layers/core-lib"
   }
 }

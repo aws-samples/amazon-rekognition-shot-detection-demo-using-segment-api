@@ -21,7 +21,6 @@ Mappings:
         Layer:
             CoreLib: "%LAYER_CORE_LIB%"
             Mediainfo: "%LAYER_MEDIAINFO%"
-            TimelineLib: "%LAYER_TIMELINE_LIB%"
         APIGateway:
             StageName: demo
         SNS:
@@ -651,73 +650,6 @@ Resources:
             ]
             LicenseInfo: MIT-0
 
-    TimelineLibLayer:
-        Type: AWS::Lambda::LayerVersion
-        Properties:
-            LayerName: !Sub [
-                "${x0}-${x1}-layer-timeline-lib", {
-                    x0: !FindInMap [
-                        "Solution",
-                        "Project",
-                        "LowerCaseId"
-                    ],
-                    x1: !Select [
-                        4,
-                        !Split [
-                            "-",
-                            !Select [
-                                2,
-                                !Split [
-                                    "/",
-                                    !Sub "${AWS::StackId}"
-                                ]
-                            ]
-                        ]
-                    ]
-                }
-            ]
-            CompatibleRuntimes:
-                - nodejs10.x
-                - nodejs12.x
-            Content:
-                S3Bucket: !Sub [
-                    "${x0}${x1}", {
-                        x0: !FindInMap [
-                            "Solution",
-                            "Template",
-                            "S3Bucket"
-                        ],
-                        x1: !If [
-                            bSingleRegion,
-                            "",
-                            !Sub "-${AWS::Region}"
-                        ]
-                    }
-                ]
-                S3Key: !Sub [
-                    "${x0}/${x1}", {
-                        x0: !FindInMap [
-                            "Solution",
-                            "Template",
-                            "KeyPrefix"
-                        ],
-                        x1: !FindInMap [
-                            "Solution",
-                            "Layer",
-                            "TimelineLib"
-                        ]
-                    }
-                ]
-            Description: !Sub [
-                "${x0} ${AWS::StackName} timeline library layer", {
-                    x0: !FindInMap [
-                        "Solution",
-                        "Project",
-                        "LowerCaseId"
-                    ]
-                }
-            ]
-            LicenseInfo: MIT-0
 
     ################################################################################
     #
@@ -1255,7 +1187,6 @@ Resources:
             Layers:
                 - !Ref CoreLibLayer
                 - !Ref MediainfoLayer
-                - !Ref TimelineLibLayer
             Environment:
                 Variables:
                     ENV_SOLUTION_UUID: !Select [
@@ -1356,7 +1287,6 @@ Resources:
             Layers:
                 - !Ref CoreLibLayer
                 - !Ref MediainfoLayer
-                - !Ref TimelineLibLayer
             Environment:
                 Variables:
                     ENV_SOLUTION_UUID: !Select [
@@ -2940,9 +2870,6 @@ Outputs:
     MediainfoLayerArn:
         Value: !Ref MediainfoLayer
         Description: Lambda Layer (Mediainfo)
-    TimelineLibLayerArn:
-        Value: !Ref TimelineLibLayer
-        Description: Lambda Layer (Timeline Library)
     # Custom Resource
     CustomResourceRoleArn:
         Value: !GetAtt CustomResourceRole.Arn

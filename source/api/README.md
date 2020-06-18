@@ -15,7 +15,8 @@ The RESTful endpoint exposes the following operations.
 |:--------|:-----|:-------|:------|:-----|
 | Get a list of analysis results | /\<stage\>/analyze | GET | stateMachine=\<state-machine-name\> | -- |
 | Get a specific analysis result | /\<stage\>/analyze | GET | stateMachine=\<state-machine-name\>?execution=\<execution-name\> | -- |
-| start analysis | /\<stage\>/analyze | POST | stateMachine=\<state-machine-name\> | see details |
+| Start analysis | /\<stage\>/analyze | POST | stateMachine=\<state-machine-name\> | see details |
+| Simple convert JSON into EDL | /\<stage\>/convert | POST | -- | see details |
 
 
 where **\<stage\>** is a named reference to an [Amazon API Gateway](https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-stages.html) deployment created by the solution.
@@ -193,6 +194,61 @@ The response is same as _Get a specific analysis result._
     "input": "<JSON string of the input>",
     "output": "<JSON string of the output>"
 }
+
+```
+
+__
+
+
+### Simple convert Amazon Rekognition Segment JSON result to EDL format
+
+**API**
+
+```
+/<stage>/convert
+```
+
+**Method**
+
+```
+POST
+```
+
+**Request**
+
+The request is sent to the lambda function where it converts Amazon Rekgonition Segment JSON result into EDL format.
+
+```json
+{
+    "name": "<string>",
+    "data": "<JSON-object>"
+}
+
+```
+
+where
+
+| Key | Value | Mandatory | Description |
+|:--- |:------|:----------|:------------|
+| name | file name | required | A file name of the JSON file |
+| data | JSON object | required | JSON object from Amazon Rekognition Segment API |
+
+
+**Response**
+
+The response contains EDL file.
+
+```
+TITLE: TEAROFSTEELS SEGMENT
+FCM: NON-DROP FRAME
+
+001  SHOT000  V     C     00:00:00:00 00:00:08:21 00:00:00:00 00:00:08:21
+* FROM CLIP NAME: tearofsteels-segment
+
+002  SHOT001  V     C     00:00:08:22 00:00:13:10 00:00:08:21 00:00:13:10
+* FROM CLIP NAME: tearofsteels-segment
+
+...
 
 ```
 

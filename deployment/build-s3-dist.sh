@@ -94,7 +94,6 @@ TMP_DIR=$(mktemp -d)
 ## Lambda layer package(s)
 LAYER_CORE_LIB=
 LAYER_MEDIAINFO=
-LAYER_TIMELINE_LIB=
 # note: core-lib for custom resource
 LOCAL_PKG_CORE_LIB=
 ## modular workflow package(s)
@@ -194,9 +193,6 @@ function build_cloudformation_templates() {
   echo "Updating %LAYER_MEDIAINFO% param in cloudformation templates..."
   sed -i'.bak' -e "s|%LAYER_MEDIAINFO%|${LAYER_MEDIAINFO}|g" *.yaml || exit 1
 
-  echo "Updating %LAYER_TIMELINE_LIB% param in cloudformation templates..."
-  sed -i'.bak' -e "s|%LAYER_TIMELINE_LIB%|${LAYER_TIMELINE_LIB}|g" *.yaml || exit 1
-
   # package(s)
   echo "Updating %PKG_CUSTOM_RESOURCES% param in cloudformation templates..."
   sed -i'.bak' -e "s|%PKG_CUSTOM_RESOURCES%|${PKG_CUSTOM_RESOURCES}|g" *.yaml || exit 1
@@ -257,25 +253,6 @@ function build_mediainfo_layer() {
   npm run build
   npm run zip -- "$LAYER_MEDIAINFO" .
   cp -v "./dist/${LAYER_MEDIAINFO}" "$BUILD_DIST_DIR"
-  popd
-}
-
-#
-# @function build_timeline_lib_layer
-# @description
-#   build layer packages and copy to deployment/dist folder
-#
-function build_timeline_lib_layer() {
-  echo "------------------------------------------------------------------------------"
-  echo "Building Timeline Library layer package"
-  echo "------------------------------------------------------------------------------"
-  local package="timeline-lib"
-  LAYER_TIMELINE_LIB="${SOLUTION}-${package}-${VERSION}.zip"
-  pushd "$SOURCE_DIR/layers/${package}"
-  npm install
-  npm run build
-  npm run zip -- "$LAYER_TIMELINE_LIB" .
-  cp -v "./dist/${LAYER_TIMELINE_LIB}" "$BUILD_DIST_DIR"
   popd
 }
 
@@ -477,7 +454,6 @@ function on_complete() {
   echo "------------------------------------------------------------------------------"
   echo "** LAYER_MEDIAINFO=${LAYER_MEDIAINFO} **"
   echo "** LAYER_CORE_LIB=${LAYER_CORE_LIB} **"
-  echo "** LAYER_TIMELINE_LIB=${LAYER_TIMELINE_LIB} **"
   echo "** PKG_CUSTOM_RESOURCES=${PKG_CUSTOM_RESOURCES} **"
   echo "** PKG_SHOT_DETECTION=${PKG_SHOT_DETECTION} **"
   echo "** PKG_STATUS_UPDATER=${PKG_STATUS_UPDATER} **"
@@ -489,7 +465,6 @@ clean_start
 install_dev_dependencies
 build_core_lib_layer
 build_mediainfo_layer
-build_timeline_lib_layer
 build_custom_resources_package
 build_api_package
 build_shot_detection_package

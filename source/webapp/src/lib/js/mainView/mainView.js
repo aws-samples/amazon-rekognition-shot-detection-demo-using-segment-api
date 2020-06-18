@@ -5,6 +5,7 @@ import Localization from '../shared/localization.js';
 import AppUtils from '../shared/appUtils.js';
 import CognitoConnector from '../signIn/cognitoConnector.js';
 import DemoTab from './tabControllers/demoTab.js';
+import ConvertTab from './tabControllers/convertTab.js';
 
 export default class MainView {
   constructor() {
@@ -17,6 +18,7 @@ export default class MainView {
     this.$view = $('<div/>').attr('id', this.ids.container);
     this.$cognito = CognitoConnector.getSingleton();
     this.$demoTab = new DemoTab(true);
+    this.$convertTab = new ConvertTab();
   }
 
   static get Constants() {
@@ -43,6 +45,10 @@ export default class MainView {
     return this.$demoTab;
   }
 
+  get convertTab() {
+    return this.$convertTab;
+  }
+
   appendTo(parent) {
     return parent.append(this.view);
   }
@@ -67,6 +73,7 @@ export default class MainView {
   async hide() {
     return Promise.all([
       this.demoTab,
+      this.convertTab,
     ].map(tab => tab.hide()));
   }
 
@@ -102,6 +109,7 @@ export default class MainView {
 
     [
       this.demoTab,
+      this.convertTab,
     ].forEach(tab =>
       navbar.append(tab.tabLink));
 
@@ -133,6 +141,7 @@ export default class MainView {
 
     [
       this.demoTab,
+      this.convertTab,
     ].forEach(tab =>
       tabContents.append(tab.tabContent));
     return tabContents;
