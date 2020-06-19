@@ -12,7 +12,15 @@ The animated GIFs illustrate how this demo solution works.
 
 
 ## Export and import Edit Decision List (EDL) to editing software
-This demo uses [Blackmagic Design Davinci Resolve 16](https://www.blackmagicdesign.com/products/davinciresolve/). If your editing software supports importing EDL timeline, it would work.
+
+An example of importing EDL to [Adobe Premiere Pro](https://www.adobe.com/products/premiere.html)
+
+![Export and Import EDL](./deployment/images/import-with-adobe-premerie-pro.gif)
+
+__
+
+
+An example of importing EDL to [Blackmagic Design Davinci Resolve 16](https://www.blackmagicdesign.com/products/davinciresolve/).
 
 ![Export and Import EDL](./deployment/images/export-import-edl.gif)
 
