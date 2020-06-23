@@ -92,6 +92,7 @@ TMP_DIR=$(mktemp -d)
   SINGLE_REGION=true
 
 ## Lambda layer package(s)
+LAYER_AWSSDK=
 LAYER_CORE_LIB=
 LAYER_MEDIAINFO=
 # note: core-lib for custom resource
@@ -187,6 +188,9 @@ function build_cloudformation_templates() {
   sed -i'.bak' -e "s|%SINGLE_REGION%|${SINGLE_REGION}|g" *.yaml || exit 1
 
   # layer(s)
+  echo "Updating %LAYER_AWSSDK% param in cloudformation templates..."
+  sed -i'.bak' -e "s|%LAYER_AWSSDK%|${LAYER_AWSSDK}|g" *.yaml || exit 1
+
   echo "Updating %LAYER_CORE_LIB% param in cloudformation templates..."
   sed -i'.bak' -e "s|%LAYER_CORE_LIB%|${LAYER_CORE_LIB}|g" *.yaml || exit 1
 
@@ -216,6 +220,25 @@ function build_cloudformation_templates() {
   # copy templates to regional bucket as well
   cp -v *.template "$BUILD_DIST_DIR"
 
+  popd
+}
+
+#
+# @function build_awssdk_layer
+# @description
+#   build layer packages and copy to deployment/dist folder
+#
+function build_awssdk_layer() {
+  echo "------------------------------------------------------------------------------"
+  echo "Building aws-sdk layer package"
+  echo "------------------------------------------------------------------------------"
+  local package="aws-sdk-layer"
+  LAYER_AWSSDK="${SOLUTION}-${package}-${VERSION}.zip"
+  pushd "$SOURCE_DIR/layers/${package}"
+  npm install
+  npm run build
+  npm run zip -- "$LAYER_AWSSDK" .
+  cp -v "./dist/${LAYER_AWSSDK}" "$BUILD_DIST_DIR"
   popd
 }
 
@@ -452,6 +475,7 @@ function on_complete() {
   echo "------------------------------------------------------------------------------"
   echo "S3 Packaging Complete. (${SOLUTION} ${VERSION})"
   echo "------------------------------------------------------------------------------"
+  echo "** LAYER_AWSSDK=${LAYER_AWSSDK} **"
   echo "** LAYER_MEDIAINFO=${LAYER_MEDIAINFO} **"
   echo "** LAYER_CORE_LIB=${LAYER_CORE_LIB} **"
   echo "** PKG_CUSTOM_RESOURCES=${PKG_CUSTOM_RESOURCES} **"
@@ -463,6 +487,7 @@ function on_complete() {
 
 clean_start
 install_dev_dependencies
+build_awssdk_layer
 build_core_lib_layer
 build_mediainfo_layer
 build_custom_resources_package

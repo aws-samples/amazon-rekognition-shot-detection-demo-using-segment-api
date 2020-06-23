@@ -1,12 +1,12 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: MIT-0
+const AWS = require('aws-sdk');
 const PATH = require('path');
 const CRYPTO = require('crypto');
 const {
   States,
   S3Utils,
   ServiceToken,
-  AuthRequest,
 } = require('core-lib');
 const mxBaseState = require('../../shared/mxBaseState');
 
@@ -63,11 +63,10 @@ class StateSegmentDetection extends mxBaseState(class {}) {
 
   async startSegmentDetection() {
     const params = await this.makeParams();
-    const response = await AuthRequest.send(
-      StateSegmentDetection.Constants.ServiceName,
-      StateSegmentDetection.Constants.Targets.StartSegmentDetection,
-      params
-    );
+    const rekog = new AWS.Rekognition({
+      rekognition: '2016-06-27',
+    });
+    const response = await rekog.startSegmentDetection(params).promise();
 
     if (!(response || {}).JobId) {
       throw new Error(`${params.Video.S3Object.Name} startSegmentDetection job failed`);

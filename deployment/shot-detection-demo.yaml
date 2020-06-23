@@ -19,6 +19,7 @@ Mappings:
             Api: "%PKG_API%"
             WebApp: "%PKG_WEBAPP%"
         Layer:
+            AwsSdk: "%LAYER_AWSSDK%"
             CoreLib: "%LAYER_CORE_LIB%"
             Mediainfo: "%LAYER_MEDIAINFO%"
         APIGateway:
@@ -510,10 +511,79 @@ Resources:
     ################################################################################
     #
     # Amazon Lambda Layers
+    # * AWS SDK
     # * Core Library
     # * Mediainfo
     #
     ################################################################################
+    AwsSdkLayer:
+        Type: AWS::Lambda::LayerVersion
+        Properties:
+            LayerName: !Sub [
+                "${x0}-${x1}-layer-aws-sdk", {
+                    x0: !FindInMap [
+                        "Solution",
+                        "Project",
+                        "LowerCaseId"
+                    ],
+                    x1: !Select [
+                        4,
+                        !Split [
+                            "-",
+                            !Select [
+                                2,
+                                !Split [
+                                    "/",
+                                    !Sub "${AWS::StackId}"
+                                ]
+                            ]
+                        ]
+                    ]
+                }
+            ]
+            CompatibleRuntimes:
+                - nodejs10.x
+                - nodejs12.x
+            Content:
+                S3Bucket: !Sub [
+                    "${x0}${x1}", {
+                        x0: !FindInMap [
+                            "Solution",
+                            "Template",
+                            "S3Bucket"
+                        ],
+                        x1: !If [
+                            bSingleRegion,
+                            "",
+                            !Sub "-${AWS::Region}"
+                        ]
+                    }
+                ]
+                S3Key: !Sub [
+                    "${x0}/${x1}", {
+                        x0: !FindInMap [
+                            "Solution",
+                            "Template",
+                            "KeyPrefix"
+                        ],
+                        x1: !FindInMap [
+                            "Solution",
+                            "Layer",
+                            "AwsSdk"
+                        ]
+                    }
+                ]
+            Description: !Sub [
+                "${x0} ${AWS::StackName} aws-sdk layer", {
+                    x0: !FindInMap [
+                        "Solution",
+                        "Project",
+                        "LowerCaseId"
+                    ]
+                }
+            ]
+            LicenseInfo: MIT-0
+
     CoreLibLayer:
         Type: AWS::Lambda::LayerVersion
         Properties:
@@ -1185,6 +1255,7 @@ Resources:
                     }
                 ]
             Layers:
+                - !Ref AwsSdkLayer
                 - !Ref CoreLibLayer
                 - !Ref MediainfoLayer
             Environment:
@@ -1285,6 +1356,7 @@ Resources:
                     }
                 ]
             Layers:
+                - !Ref AwsSdkLayer
                 - !Ref CoreLibLayer
                 - !Ref MediainfoLayer
             Environment:
@@ -1628,6 +1700,7 @@ Resources:
                     }
                 ]
             Layers:
+                - !Ref AwsSdkLayer
                 - !Ref CoreLibLayer
             Environment:
                 Variables:
@@ -1942,6 +2015,7 @@ Resources:
                     }
                 ]
             Layers:
+                - !Ref AwsSdkLayer
                 - !Ref CoreLibLayer
 
     ApiErrorLogRole:
@@ -2864,6 +2938,9 @@ Resources:
 
 Outputs:
     # Layers
+    AwsSdkLayerArn:
+        Value: !Ref AwsSdkLayer
+        Description: Lambda Layer (AWS SDK Library)
     CoreLibLayerArn:
         Value: !Ref CoreLibLayer
         Description: Lambda Layer (Core Library)

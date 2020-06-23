@@ -1,10 +1,10 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: MIT-0
+const AWS = require('aws-sdk');
 const PATH = require('path');
 const {
   States,
   S3Utils,
-  AuthRequest,
 } = require('core-lib');
 const mxBaseState = require('../../shared/mxBaseState');
 
@@ -57,11 +57,10 @@ class StateCollectDetectionResults extends mxBaseState(class {}) {
     let i = 0;
     let response;
     do {
-      response = await AuthRequest.send(
-        StateCollectDetectionResults.Constants.ServiceName,
-        StateCollectDetectionResults.Constants.Targets.GetSegmentDetection,
-        params
-      ).catch(e =>
+      const rekog = new AWS.Rekognition({
+        rekognition: '2016-06-27',
+      });
+      response = await rekog.getSegmentDetection(params).promise().catch(e =>
         new Error(`${params.JobId} ${e.message}`));
       if (response instanceof Error) {
         throw response;

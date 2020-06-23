@@ -5,7 +5,6 @@ const S3Utils = require('./lib/s3utils');
 const JsonUtils = require('./lib/jsonUtils');
 const DB = require('./lib/db');
 const ServiceToken = require('./lib/serviceToken');
-const AuthRequest = require('./lib/authRequest');
 const EDLComposer = require('./lib/edlComposer');
 
 module.exports = {
@@ -14,6 +13,5 @@ module.exports = {
   JsonUtils,
   DB,
   ServiceToken,
-  AuthRequest,
   EDLComposer,
 };
