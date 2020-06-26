@@ -64,6 +64,8 @@ The solution is deployed using an AWS CloudFormation template with AWS Lambda ba
 | US East (N. Virginia) |<a href="https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/new?stackName=shot-detection&templateURL=https%3A%2F%2Fml-specialist-sa-demo-us-east-1.s3.amazonaws.com%2Fshot-detection-demo%2F1.0.0%2Fshot-detection-demo.template" target="_blank">Launch stack</a> |
 | US East (Ohio) |<a href="https://console.aws.amazon.com/cloudformation/home?region=us-east-2#/stacks/new?stackName=shot-detection&templateURL=https%3A%2F%2Fml-specialist-sa-demo-us-east-2.s3.amazonaws.com%2Fshot-detection-demo%2F1.0.0%2Fshot-detection-demo.template" target="_blank">Launch stack</a> |
 | US West (Oregon) |<a href="https://console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/new?stackName=shot-detection&templateURL=https%3A%2F%2Fml-specialist-sa-demo-us-west-2.s3-us-west-2.amazonaws.com%2Fshot-detection-demo%2F1.0.0%2Fshot-detection-demo.template" target="_blank">Launch stack</a> |
+| Asia Pacific (Tokyo) |<a href="https://console.aws.amazon.com/cloudformation/home?region=ap-northeast-1#/stacks/new?stackName=shot-detection&templateURL=https%3A%2F%2Fml-specialist-sa-demo-ap-northeast-1.s3-ap-northeast-1.amazonaws.com%2Fshot-detection-demo%2F1.0.0%2Fshot-detection-demo.template" target="_blank">Launch stack</a> |
+
 
 * Under **Create stack** page, click **Next** to continue
 
