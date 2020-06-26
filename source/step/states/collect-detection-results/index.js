@@ -60,7 +60,10 @@ class StateCollectDetectionResults extends mxBaseState(class {}) {
       const rekog = new AWS.Rekognition({
         rekognition: '2016-06-27',
       });
-      response = await rekog.getSegmentDetection(params).promise().catch(e =>
+      response = await rekog.getSegmentDetection({
+        ...params,
+        NextToken: (response || {}).NextToken || params.NextToken,
+      }).promise().catch(e =>
         new Error(`${params.JobId} ${e.message}`));
       if (response instanceof Error) {
         throw response;
