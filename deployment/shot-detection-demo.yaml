@@ -32,7 +32,7 @@ Mappings:
             SortKey: keyword
     Node:
         Runtime:
-            Version: nodejs10.x
+            Version: nodejs14.x
 
 Parameters:
     Email:
@@ -518,7 +518,7 @@ Resources:
                 }
             ]
             CompatibleRuntimes:
-                - nodejs10.x
+                - nodejs14.x
                 - nodejs12.x
             Content:
                 S3Bucket: !Sub [
@@ -586,7 +586,7 @@ Resources:
                 }
             ]
             CompatibleRuntimes:
-                - nodejs10.x
+                - nodejs14.x
                 - nodejs12.x
             Content:
                 S3Bucket: !Sub [
@@ -654,7 +654,7 @@ Resources:
                 }
             ]
             CompatibleRuntimes:
-                - nodejs10.x
+                - nodejs14.x
                 - nodejs12.x
             Content:
                 S3Bucket: !Sub [
