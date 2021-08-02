@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"bundle exists\" && exit 0",
     "build:clean": "rm -rf dist temp && mkdir -p dist/js temp",
-    "build:download": "cd temp && wget https://github.com/popperjs/popper-core/archive/v1.16.0.zip -O popper.zip",
+    "build:download": "cd temp && wget -q --no-check-certificate https://github.com/popperjs/popper-core/archive/v1.16.0.zip -O popper.zip",
     "build:unpack": "cd temp && unzip popper.zip",
     "build:copy": "cp -v temp/popper-core-1.16.0/dist/umd/*.min.js ./dist/js",
     "build:postbuild": "rm -rf temp",
@@ -14,6 +14,5 @@
   },
   "author": "",
   "license": "MIT",
-  "dependencies": {},
   "devDependencies": {}
 }

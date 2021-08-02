@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"bundle exists\" && exit 0",
     "build:clean": "rm -rf dist temp && mkdir -p dist/js temp",
-    "build:download": "cd temp && wget https://github.com/jquery/jquery/archive/3.5.0.zip -O jquery.zip",
+    "build:download": "cd temp && wget -q --no-check-certificate https://github.com/jquery/jquery/archive/3.5.0.zip -O jquery.zip",
     "build:unpack": "cd temp && unzip jquery.zip",
     "build:copy": "cp -v temp/jquery-3.5.0/dist/*.min.js ./dist/js",
     "build:postbuild": "rm -rf temp",
@@ -14,6 +14,5 @@
   },
   "author": "",
   "license": "MIT",
-  "dependencies": {},
   "devDependencies": {}
 }

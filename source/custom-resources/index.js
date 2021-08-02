@@ -12,6 +12,10 @@ exports.handler = async (event, context) => {
     const resource = event.ResourceType.split(':').pop();
     let handler;
     switch (resource) {
+      /* ApiGateway */
+      case 'ConfigureApiCloudWatchLogRole':
+        handler = require('./lib/api').ConfigureApiCloudWatchLogRole;
+        break;
       /* mediaconvert */
       case 'DescribeMediaConvert':
         handler = require('./lib/mediaconvert').DescribeMediaConvert;

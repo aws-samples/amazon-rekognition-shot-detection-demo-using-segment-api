@@ -1,7 +1,15 @@
-// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
-// SPDX-License-Identifier: MIT-0
+/**
+ * Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: LicenseRef-.amazon.com.-AmznSL-1.0
+ * Licensed under the Amazon Software License  http://aws.amazon.com/asl/
+ */
+
+/**
+ * @author MediaEnt Solutions
+ */
+
+/* eslint-disable max-classes-per-file */
 const AWS = require('aws-sdk');
-const OS = require('os');
 const FS = require('fs');
 const URL = require('url');
 const PATH = require('path');
@@ -13,16 +21,16 @@ const {
 } = require('xml2js');
 
 /**
- * @class MediainfoError
+ * @class MediaInfoError
  * @description Error code 1900
  */
-class MediainfoError extends Error {
+class MediaInfoError extends Error {
   constructor(...args) {
     super(...args);
     this.name = this.constructor.name;
     this.errorCode = 1900;
     this.message = `${this.errorCode} - ${this.message || 'unknown mediainfo error'}`;
-    Error.captureStackTrace(this, MediainfoError);
+    Error.captureStackTrace(this, MediaInfoError);
   }
 }
 
@@ -32,15 +40,6 @@ class MediainfoError extends Error {
  */
 class MediaInfoCommand {
   constructor(options) {
-    const subpath = (OS.platform() === 'darwin')
-      ? 'macos'
-      : process.version.indexOf('v10') >= 0
-        ? 'amazon/linux2'
-        : 'amazon/linux';
-
-    this.$libPath = PATH.join(__dirname, subpath);
-    this.$bin = PATH.join(this.$libPath, 'mediainfo');
-
     this.$s3 = new AWS.S3({
       apiVersion: '2006-03-01',
       computeChecksums: true,
@@ -52,14 +51,23 @@ class MediaInfoCommand {
     this.$jsonData = undefined;
   }
 
+  static GetConfiguration() {
+    const subPath = 'amazon/linux2';
+    return {
+      LD_LIBRARY_PATH: PATH.join(__dirname, subPath),
+      PATH: PATH.join(__dirname, subPath),
+      MEDIAINFO: PATH.join(__dirname, subPath, 'mediainfo'),
+    };
+  }
+
   static get Constants() {
     return {
       Command: {
         Options: [
           '--Full',
           '--Output=XML',
+          '--Cover_Data=base64',
         ],
-        MaxBuffer: 2 * 1024 * 1024,
       },
       /* minimum key set to return */
       KeySet: {
@@ -71,6 +79,7 @@ class MediaInfoCommand {
           'overallBitRate',
         ],
         Video: [
+          'streamOrder',
           'streamIdentifier',
           'format',
           'formatProfile',
@@ -88,8 +97,10 @@ class MediaInfoCommand {
           'scanType',
           'scanOrder',
           'timeCodeFirstFrame',
+          'iD',
         ],
         Audio: [
+          'streamOrder',
           'streamIdentifier',
           'format',
           'codec',
@@ -97,22 +108,16 @@ class MediaInfoCommand {
           'bitDepth',
           'bitRateMode',
           'bitRate',
+          'channels',
           'channelS',
           'channelLayout',
           'samplesPerFrame',
           'samplingRate',
           'language',
+          'iD',
         ],
       },
     };
-  }
-
-  get libPath() {
-    return this.$libPath;
-  }
-
-  get bin() {
-    return this.$bin;
   }
 
   get s3() {
@@ -148,30 +153,29 @@ class MediaInfoCommand {
   get video() {
     return !this.jsonData
       ? undefined
-      : ((this.jsonData.mediainfo.file || {}).track || []).filter(x => x.$.type.toLowerCase() === 'video');
+      : ((this.jsonData.mediaInfo.media || {}).track || []).filter(x => x.$.type.toLowerCase() === 'video');
   }
 
   get audio() {
     return !this.jsonData
       ? undefined
-      : ((this.jsonData.mediainfo.file || {}).track || []).filter(x => x.$.type.toLowerCase() === 'audio');
+      : ((this.jsonData.mediaInfo.media || {}).track || []).filter(x => x.$.type.toLowerCase() === 'audio');
   }
 
   get container() {
     return !this.jsonData
       ? undefined
-      : ((this.jsonData.mediainfo.file || {}).track || []).filter(x => x.$.type.toLowerCase() === 'general');
+      : ((this.jsonData.mediaInfo.media || {}).track || []).filter(x => x.$.type.toLowerCase() === 'general');
   }
 
   get others() {
     return !this.jsonData
       ? undefined
-      : ((this.jsonData.mediainfo.file || {}).track || []).filter(x =>
+      : ((this.jsonData.mediaInfo.media || {}).track || []).filter(x =>
         x.$.type.toLowerCase() !== 'general'
         && x.$.type.toLowerCase() !== 'audio'
         && x.$.type.toLowerCase() !== 'video');
   }
-
 
   toJSON() {
     return JSON.parse(JSON.stringify(this.jsonData));
@@ -224,17 +228,10 @@ class MediaInfoCommand {
    */
   static escapeS3Character(path) {
     const url = URL.parse(path, true);
-
-    const {
-      AWSAccessKeyId,
-      Signature,
-    } = url.query || {};
-
-    /* if is signed url, nothing to do */
-    if (AWSAccessKeyId && Signature) {
+    /* if is a signed url, nothing to do */
+    if (url.query['X-Amz-Algorithm'] === 'AWS4-HMAC-SHA256') {
       return path;
     }
-
     /* replacing '+' with space character */
     url.pathname = encodeURI(decodeURI(url.pathname).replace(/\s/g, '+'));
     return URL.format(url);
@@ -297,25 +294,30 @@ class MediaInfoCommand {
    * @param {string} url
    */
   async command(url) {
-    return new Promise((resolve, reject) => {
-      const cmd = [
-        `LD_LIBRARY_PATH=${this.libPath}`,
-        this.bin,
-        ...MediaInfoCommand.Constants.Command.Options,
-        `'${url}'`,
-      ].join(' ');
-
-      const options = {
-        maxBuffer: MediaInfoCommand.Constants.Command.MaxBuffer,
-      };
-
-      CHILD.exec(cmd, options, (e, stdout, stderr) =>
-        ((e)
-          ? reject(e)
-          : (stderr)
-            ? reject(new Error(stderr))
-            : resolve(stdout))).once('error', e => reject(e));
-    });
+    const config = MediaInfoCommand.GetConfiguration();
+    const ldLibraryPath = [
+      config.LD_LIBRARY_PATH,
+      process.env.LD_LIBRARY_PATH,
+    ].filter(x => x).join(':');
+    const defaults = {
+      cwd: undefined,
+      env: {
+        ...process.env,
+        LD_LIBRARY_PATH: ldLibraryPath,
+      },
+    };
+    const params = [
+      ...MediaInfoCommand.Constants.Command.Options,
+      url,
+    ];
+    const response = CHILD.spawnSync(config.MEDIAINFO, params, defaults);
+    if (response.error) {
+      throw response.error;
+    }
+    if (response.status !== 0) {
+      throw new Error(response.stderr.toString());
+    }
+    return response.stdout.toString();
   }
 
   /**
@@ -329,11 +331,10 @@ class MediaInfoCommand {
       this.rawXml = await this.command(parsed);
       parsed = await this.parseXml(this.rawXml);
       parsed = MediaInfoCommand.dedup(parsed);
-
       this.jsonData = MediaInfoCommand.strip(params, parsed);
       return this.toJSON();
     } catch (e) {
-      throw (e instanceof MediainfoError) ? e : new MediainfoError(e);
+      throw (e instanceof MediaInfoError) ? e : new MediaInfoError(e);
     }
   }
 
@@ -358,12 +359,20 @@ class MediaInfoCommand {
     }
 
     const modified = Object.assign({}, data);
+    modified.mediaInfo.media.$.ref = ref;
 
-    const container = modified.mediainfo.file.track.find(x =>
-      x.$.type.toLowerCase() === 'general');
-    container.completeName = ref;
-    container.fileExtension = ext;
-
+    for (let i = 0; i < modified.mediaInfo.media.track.length; i += 1) {
+      const track = modified.mediaInfo.media.track[i];
+      if (track.completeName !== undefined) {
+        track.completeName = ref;
+      }
+      if (track.fileNameExtension !== undefined) {
+        track.fileNameExtension = ext;
+      }
+      if (track.fileExtension !== undefined) {
+        track.fileExtension = ext;
+      }
+    }
     return modified;
   }
 
@@ -428,8 +437,10 @@ class MediaInfoCommand {
 }
 
 module.exports = {
-  MediainfoError,
+  MediaInfoError,
   MediaInfoCommand,
+  MediaInfoConfig: MediaInfoCommand.GetConfiguration(),
   XParser: Parser,
   XBuilder: Builder,
 };
+/* eslint-enable max-classes-per-file */

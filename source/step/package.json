@@ -1,10 +1,12 @@
 {
   "name": "shot-detection-stepfunction",
-  "version": "1.0.0",
-  "description": "(shot detection demo) AWS Step Functions Lambda function",
+  "version": "2.0.0",
+  "description": "(segment detection demo) AWS Step Functions Lambda function",
   "main": "index.js",
   "private": true,
-  "dependencies": {},
+  "dependencies": {
+    "crypto-js": "^4.0.0"
+  },
   "scripts": {
     "pretest": "npm install",
     "test": "mocha *.spec.js",
@@ -17,7 +19,7 @@
   "author": "aws-specialist-sa-emea",
   "license": "MIT-0",
   "devDependencies": {
-    "mediainfo": "file:../layers/mediainfo",
-    "core-lib": "file:../layers/core-lib"
+    "core-lib": "file:../layers/core-lib",
+    "mediainfo": "file:../layers/mediainfo"
   }
 }

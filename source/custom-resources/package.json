@@ -1,7 +1,7 @@
 {
   "name": "shot-detection-custom-resources",
-  "version": "1.0.0",
-  "description": "(shot detection demo) AWS CloudFormation Custom Resource Lambda function",
+  "version": "2.0.0",
+  "description": "(segment detection demo) AWS CloudFormation Custom Resource Lambda function",
   "main": "index.js",
   "private": true,
   "scripts": {

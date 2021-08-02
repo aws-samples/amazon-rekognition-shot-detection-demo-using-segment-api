@@ -27,5 +27,5 @@ HTTPS requests requires [AWS Signature V4](https://docs.aws.amazon.com/general/l
 
 ___
 
-Next to [Custom Resources Component](../custom-resources/README.md) | Back to [Shot Detection State Machine](../step/README.md) | Retun to [README](../../README.md)
+Next to [Custom Resources Component](../custom-resources/README.md) | Back to [Segment Detection State Machine](../step/README.md) | Retun to [README](../../README.md)
 

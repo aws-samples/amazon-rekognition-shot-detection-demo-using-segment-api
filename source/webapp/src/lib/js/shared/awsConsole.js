@@ -10,20 +10,6 @@ export class AWSConsoleS3 {
   }
 }
 
-export class AWSConsoleRekogntion {
-  static getDatasetLink(name) {
-    return `https://${SolutionManifest.Region}.console.aws.amazon.com/rekognition/custom-labels#/datasets/${name}`;
-  }
-
-  static getProjectLink(name) {
-    return `https://${SolutionManifest.Region}.console.aws.amazon.com/rekognition/custom-labels#/projects/${name}`;
-  }
-
-  static getModelLink(name, model) {
-    return `https://${SolutionManifest.Region}.console.aws.amazon.com/rekognition/custom-labels#/projects/${name}/models/${model}`;
-  }
-}
-
 export class AWSConsoleStepFunctions {
   static getExecutionLink(arn) {
     return `https://console.aws.amazon.com/states/home?region=${SolutionManifest.Region}#/executions/details/${arn}`;

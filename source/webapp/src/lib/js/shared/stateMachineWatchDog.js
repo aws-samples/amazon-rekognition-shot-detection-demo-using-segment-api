@@ -155,7 +155,7 @@ export class StateMachineExecution extends mxReadable(class {}) {
 
   createListItem() {
     const duration = ((this.output || {}).output)
-      ? StateMachineExecution.readableDuration(this.output.output[SolutionManifest.States.RunMediainfo].mediainfo.container[0].duration)
+      ? StateMachineExecution.readableDuration(this.output.output[SolutionManifest.States.RunMediainfo].mediainfo.container[0].duration * 1000)
       : '--';
     const dateAdded = StateMachineExecution.isoDateTime(this.startDate);
     const dateCompleted = (this.stopDate)
@@ -214,7 +214,7 @@ export class StateMachineExecution extends mxReadable(class {}) {
       return undefined;
     }
     const duration = ((this.output || {}).output)
-      ? StateMachineExecution.readableDuration(this.output.output[SolutionManifest.States.RunMediainfo].mediainfo.container[0].duration)
+      ? StateMachineExecution.readableDuration(this.output.output[SolutionManifest.States.RunMediainfo].mediainfo.container[0].duration * 1000)
       : '--';
     const dateAdded = StateMachineExecution.isoDateTime(this.startDate);
     const dateCompleted = (this.stopDate)

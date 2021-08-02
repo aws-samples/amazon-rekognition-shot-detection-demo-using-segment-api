@@ -1,18 +1,18 @@
-# Shot Detection State Machine
+# Segment Detection State Machine
 
 ## Overview
 
-The Shot Detection State Machine uses [AWS Step Functions](https://aws.amazon.com/step-functions/) to orchestrate the detection workflow where it runs Mediainfo to extract technical metadata of the video, creates a proxy video (MP4 960x540) based on the mediainfo, runs Amazon Rekognition Segment API to extract the shots and technical cues metadata from the video, and parses and converts the metadata to create WebVTT tracks (for display) and Edit Decision List (EDL) file for editing software.
+The Segment Detection State Machine uses [AWS Step Functions](https://aws.amazon.com/step-functions/) to orchestrate the detection workflow where it runs Mediainfo to extract technical metadata of the video, creates a proxy video (MP4 960x540) based on the mediainfo, runs Amazon Rekognition Segment API to extract the shots and technical cues metadata from the video, and parses and converts the metadata to create WebVTT tracks (for display) and Edit Decision List (EDL) file for editing software.
 
-The diagram shows the shot detection state machine.
-![Shot Detection State Machine Diagram](../../deployment/images/shot-detection-state-machine.jpg)
+The diagram shows the segment detection state machine.
+![Segment Detection State Machine Diagram](../../deployment/images/shot-detection-state-machine.jpg)
 
 
 The state machine also uses numbers of optimization techniques (will be discussed later) including [AWS Step Function Service Integration](https://docs.aws.amazon.com/step-functions/latest/dg/connect-to-resource.html) and [Amazon DynamoDB Time To Live (TTL)](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/TTL.html).
 
 The diagram illustrates the Service Integration technique.
 
-![Shot Detection State Machine Diagram](../../deployment/images/shot-detection-architecture-service-integration.jpg)
+![Segment Detection State Machine Diagram](../../deployment/images/shot-detection-architecture-service-integration.jpg)
 
 ___
 
@@ -105,7 +105,7 @@ ___
 
 ## AWS Step Functions Service Integration Technique
 
-As mentioned earlier, the Shot Detection state machine uses AWS Step Functions Service Integration technique to simplify the workflow. This is very useful when you have an asynchronous process that requires long wait and constantly monitoring the status of the process.
+As mentioned earlier, the Segment Detection state machine uses AWS Step Functions Service Integration technique to simplify the workflow. This is very useful when you have an asynchronous process that requires long wait and constantly monitoring the status of the process.
 
 A typical way of implementing a state machine that involves a long-wait process is to provide a polling loop where it **sleeps**, **wakes up every X seconds**, **checks the status** and **goes back to sleep** until the process completes.
 
@@ -113,7 +113,7 @@ With the Service Integration, we eliminate the polling or loop. Instead, we star
 
 This makes the state machine much simplier to read and to maintain. It is also cost optimized as we eliminate unnecessary state transitions.
 
-In the Shot Detection state machine, **mediaconvert** and **segment detection** states use this Service Integration technique.
+In the Segment Detection state machine, **mediaconvert** and **segment detection** states use this Service Integration technique.
 
 Let's dive deep into both states.
 
@@ -194,7 +194,7 @@ ___
 
 [Amazon DynamoDB Time To Live (TTL)](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/TTL.html) allows you to define a per-item timestamp to determine when an item is no longer needed. This is useful in scenarios where the data is temporary and short-live. In this demo, we use Amazon DynamoDB table to temporarily store the **task token** used to communicate back to the AWS Step Functions state machine. It is a good fit to configure the data items to expire after certain time.
 
-The diagram shows table items and attributes of two different states of the shot detection state machine.
+The diagram shows table items and attributes of two different states of the segment detection state machine.
 
 ![Service Token Table TL](../../deployment/images/service-token-table-ttl.jpg)
 

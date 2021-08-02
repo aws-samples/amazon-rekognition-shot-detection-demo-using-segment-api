@@ -1,10 +1,9 @@
 {
   "name": "shot-detection-status-updater",
-  "version": "1.0.0",
-  "description": "(shot detection demo) Amazon CloudWatch Event Status Updater",
+  "version": "2.0.0",
+  "description": "(segment detection demo) Amazon CloudWatch Event Status Updater",
   "main": "index.js",
   "private": true,
-  "dependencies": {},
   "scripts": {
     "pretest": "npm install",
     "test": "mocha *.spec.js",

@@ -1,6 +1,6 @@
 {
   "name": "shot-detection-webapp",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "web application to allow upload videos, monitor and view analyzed results",
   "main": "index.js",
   "private": true,
@@ -14,6 +14,5 @@
   },
   "author": "aws-specialist-sa-emea",
   "license": "MIT-0",
-  "dependencies": {},
   "devDependencies": {}
 }

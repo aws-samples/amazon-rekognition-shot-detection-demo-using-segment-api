@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"bundle exists\" && exit 0",
     "build:clean": "rm -rf dist temp && mkdir -p dist/js dist/css temp",
-    "build:download": "cd temp && wget https://codeload.github.com/spchuang/videojs-markers/zip/master -O videojs-markers.zip",
+    "build:download": "cd temp && wget -q --no-check-certificate https://codeload.github.com/spchuang/videojs-markers/zip/master -O videojs-markers.zip",
     "build:unpack": "cd temp && unzip videojs-markers.zip",
     "build:copy": "cp -v temp/videojs-markers*/dist/*.min.js ./dist/js && cp -v temp/videojs-markers*/dist/*.min.css ./dist/css",
     "build:postbuild": "rm -rf temp",
@@ -14,6 +14,5 @@
   },
   "author": "",
   "license": "Apache 2.0",
-  "dependencies": {},
   "devDependencies": {}
 }

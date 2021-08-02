@@ -1,10 +1,11 @@
 {
   "name": "core-lib",
-  "version": "1.0.0",
-  "description": "(shot detection demo) core library",
+  "version": "2.0.0",
+  "description": "(segment detection demo) core library",
   "main": "index.js",
   "private": true,
   "dependencies": {
+    "adm-zip": "^0.5.5",
     "mime": "^2.3.1"
   },
   "scripts": {

@@ -350,4 +350,4 @@ The backend API lambda function is given the following permission to access spec
 
 ___
 
-Next to [Shot Detection State Machine](../step/README.md) | Back to [README](../../README.md)
+Next to [Segment Detection State Machine](../step/README.md) | Back to [README](../../README.md)

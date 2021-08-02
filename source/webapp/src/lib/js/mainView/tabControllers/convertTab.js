@@ -6,6 +6,7 @@ import mxSpinner from '../../mixins/mxSpinner.js';
 import mxReadable from '../../mixins/mxReadable.js';
 import mxDropzone from '../../mixins/mxDropzone.js';
 import BaseTab from './baseTab.js';
+import AppUtils from '../../shared/appUtils.js';
 
 export default class ConvertTab extends mxDropzone(mxReadable(mxSpinner(BaseTab))) {
   constructor(defaultTab = false) {
@@ -64,6 +65,7 @@ export default class ConvertTab extends mxDropzone(mxReadable(mxSpinner(BaseTab)
     const ul = $('<ul/>').addClass('list-group');
 
     const status = $('<div/>').addClass('lead-sm mr-4 d-flex align-self-end');
+
     const upload = $('<button/>').addClass('btn btn-sm btn-success ml-1')
       .attr('data-action', 'upload')
       .html(Localization.Buttons.StartConvert);
@@ -101,7 +103,7 @@ export default class ConvertTab extends mxDropzone(mxReadable(mxSpinner(BaseTab)
             .append($('<a/>').addClass('btn btn-sm btn-success text-capitalize mb-1 ml-1')
               .attr('href', downloadUrl)
               .attr('target', '_blank')
-              .attr('download', `${file.basename}.edl`)
+              .attr('download', `${file.basename}.zip`)
               .attr('role', 'button')
               .append(Localization.Buttons.DownloadEDL));
           item.append(download);
@@ -165,12 +167,15 @@ export default class ConvertTab extends mxDropzone(mxReadable(mxSpinner(BaseTab)
 
   async startConversion(file) {
     const text = await file.readAsText();
-    const response = await ApiHelper.startConversion({
+    const b64Data = await ApiHelper.startConversion({
       name: file.name,
       data: JSON.parse(text),
     });
-    return URL.createObjectURL(new Blob([response], {
-      type: 'application/octet-stream',
-    }));
+    const mime = 'application/octet-stream';
+    return fetch(`data:${mime};base64,${b64Data}`)
+      .then(res => res.blob())
+      .then(blob => URL.createObjectURL(blob, {
+        type: mime,
+      }));
   }
 }

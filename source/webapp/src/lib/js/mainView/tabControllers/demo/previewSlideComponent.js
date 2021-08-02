@@ -74,7 +74,7 @@ export default class PreviewSlideComponent extends mxReadable(BaseSlideComponent
   get readableDuration() {
     return (!this.mediainfo)
       ? '--'
-      : PreviewSlideComponent.readableDuration(this.mediainfo.container[0].duration);
+      : PreviewSlideComponent.readableDuration(this.mediainfo.container[0].duration * 1000);
   }
 
   async setMedia(media) {
@@ -256,7 +256,7 @@ export default class PreviewSlideComponent extends mxReadable(BaseSlideComponent
     });
 
     const edl = timeline.keys.find(x =>
-      x.substring(x.lastIndexOf('.')) === '.edl');
+      x.substring(x.lastIndexOf('.')) === '.zip');
     const btnEdl = $('<a/>').addClass('btn btn-sm btn-success text-capitalize mb-1 ml-1')
       .attr('href', S3Utils.signUrl(timeline.bucket, edl))
       .attr('target', '_blank')

@@ -38,7 +38,7 @@ class S3Utils {
     return S3Utils.getInstance().upload({
       Bucket: bucket,
       Key: key,
-      Body: typeof body === 'string'
+      Body: (typeof body === 'string' || body instanceof Buffer)
         ? body
         : JSON.stringify(body, null, 2),
       ...options,

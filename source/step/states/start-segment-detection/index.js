@@ -67,11 +67,9 @@ class StateSegmentDetection extends mxBaseState(class {}) {
       rekognition: '2016-06-27',
     });
     const response = await rekog.startSegmentDetection(params).promise();
-
     if (!(response || {}).JobId) {
       throw new Error(`${params.Video.S3Object.Name} startSegmentDetection job failed`);
     }
-
     return {
       jobId: response.JobId,
     };

@@ -27,7 +27,7 @@ export default class AppUtils extends mxReadable(class {}) {
     return response;
   }
 
-  static async authHttpRequest(method, endpoint, query = {}, body = '') {
+  static async authHttpRequest(method, endpoint, query = {}, body = '', responseType = undefined) {
     return new Promise((resolve, reject) => {
       const request = new XMLHttpRequest();
 
@@ -42,6 +42,9 @@ export default class AppUtils extends mxReadable(class {}) {
       });
 
       request.withCredentials = false;
+      if (responseType) {
+        request.responseType = responseType;
+      }
 
       request.onerror = e =>
         reject(new Error(`${request.status || 'Error'} - ${method} ${request.responseURL || endpoint}`));
@@ -53,8 +56,13 @@ export default class AppUtils extends mxReadable(class {}) {
         if (request.readyState === XMLHttpRequest.DONE) {
           if (request.status === 200) {
             try {
-              const parsed = JSON.parse(request.responseText);
-              resolve(parsed);
+              const contentType = request.getResponseHeader('content-type');
+              if (contentType === 'application/octet-stream') {
+                resolve(request.response);
+              } else {
+                const parsed = JSON.parse(request.responseText);
+                resolve(parsed);
+              }
             } catch (e) {
               resolve(request.responseText);
             }

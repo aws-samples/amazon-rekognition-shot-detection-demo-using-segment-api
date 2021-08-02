@@ -55,7 +55,7 @@ class StateMediaConvert extends mxBaseState(class {}) {
     const {
       AudioSourceName,
       AudioSelectors,
-    } = this.makeChannelMappings();
+    } = this.makeChannelMappings() || {};
 
     return {
       Role: process.env.ENV_MEDIACONVERT_ROLE,
@@ -86,18 +86,9 @@ class StateMediaConvert extends mxBaseState(class {}) {
   makeChannelMappings() {
     const audio = this.output[States.RunMediainfo].mediainfo.audio || [];
     const name = 'Audio Selector 1';
-    let tracks = (audio.length === 1)
-      ? audio[0]
-      : audio.find(x => x.channelS >= 2)
-      || audio.find(x => x.format === 'Dolby E')
-      || audio.filter(x => x.channelS === 1).sort((a, b) =>
-        a.streamIdentifier - b.streamIdentifier).slice(0, 2);
-
-    if (tracks && !Array.isArray(tracks)) {
-      tracks = [tracks];
-    }
-    return (!tracks || !tracks.length)
-      ? {}
+    const tracks = this.parseTracks(audio);
+    return (!tracks.length)
+      ? undefined
       : {
         AudioSourceName: name,
         AudioSelectors: {
@@ -105,11 +96,51 @@ class StateMediaConvert extends mxBaseState(class {}) {
             Offset: 0,
             DefaultSelection: 'DEFAULT',
             SelectorType: 'TRACK',
-            /* note: streamIdentifier is 0-based, Track is 1-based */
-            Tracks: tracks.map(x => x.streamIdentifier + 1),
+            Tracks: tracks,
           },
         },
       };
+  }
+
+  parseTracks(audio) {
+    /* #0: reorder audio tracks */
+    const reordered = audio.sort((a, b) => {
+      const a0 = (a.streamIdentifier !== undefined) ? a.streamIdentifier : a.streamOrder;
+      const b0 = (b.streamIdentifier !== undefined) ? b.streamIdentifier : b.streamOrder;
+      return a0 - b0;
+    }).map((x, idx) => ({
+      ...x,
+      trackIdx: idx + 1,
+    }));
+    /* #1: input has no audio */
+    if (!reordered.length) {
+      return [];
+    }
+    /* #2: input has one audio track */
+    if (reordered.length === 1) {
+      return [reordered[0].trackIdx];
+    }
+    /* #3: multiple audio tracks and contain stereo track */
+    for (let i = 0; i < reordered.length; i++) {
+      if (this.getChannels(reordered[i]) >= 2) {
+        return [reordered[i].trackIdx];
+      }
+    }
+    /* #4: multiple audio tracks and contain Dolby E track */
+    for (let i = 0; i < reordered.length; i++) {
+      if (reordered[i].format === 'Dolby E') {
+        return [reordered[i].trackIdx];
+      }
+    }
+    /* #5: multiple PCM mono audio tracks, take the first 2 mono tracks */
+    const pcms = reordered.filter(x => this.getChannels(x) === 1);
+    return pcms.slice(0, 2).map(x => x.trackIdx);
+  }
+
+  getChannels(track) {
+    return (track.channelS !== undefined)
+      ? track.channelS
+      : track.channels;
   }
 
   makeOutputGroup(aName) {

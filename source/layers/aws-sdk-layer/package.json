@@ -1,7 +1,7 @@
 {
   "name": "aws-sdk-layer",
-  "version": "1.0.0",
-  "description": "(shot detection demo) aws-sdk layer",
+  "version": "2.0.0",
+  "description": "(segment detection demo) aws-sdk layer",
   "main": "index.js",
   "private": true,
   "author": "aws-specialist-sa-emea",

@@ -169,7 +169,11 @@
   font-size: 0.8rem;
 }
 
-.btn, .form-control, .custom-select, select {
+.btn, .btn-sm, .form-control, .custom-select, select {
+  border-radius: 0!important;
+}
+
+.btn-group-sm>.btn-sm {
   border-radius: 0;
 }
 
@@ -259,6 +263,11 @@
 
 .lead-sm, .lead-xs, .lead-xxs {
   font-weight: 200;
+}
+
+.lead-sm-w {
+  font-size: 1rem;
+  font-weight: 300;
 }
 
 .sidebar {

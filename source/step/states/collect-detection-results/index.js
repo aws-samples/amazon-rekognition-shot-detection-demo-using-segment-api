@@ -56,10 +56,10 @@ class StateCollectDetectionResults extends mxBaseState(class {}) {
     const accumulated = [];
     let i = 0;
     let response;
+    const rekog = new AWS.Rekognition({
+      rekognition: '2016-06-27',
+    });
     do {
-      const rekog = new AWS.Rekognition({
-        rekognition: '2016-06-27',
-      });
       response = await rekog.getSegmentDetection({
         ...params,
         NextToken: (response || {}).NextToken || params.NextToken,

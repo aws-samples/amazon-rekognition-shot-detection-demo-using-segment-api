@@ -3,11 +3,14 @@
 const AWS = require('aws-sdk');
 const PATH = require('path');
 const {
+  AdmZip,
   EDLComposer,
 } = require('core-lib');
 const {
   mxValidation,
 } = require('./mxValidation');
+
+const TYPE_SHOT = 'SHOT';
 
 class ApiRequest extends mxValidation(class {}) {
   constructor(event, context) {
@@ -154,12 +157,17 @@ class ApiRequest extends mxValidation(class {}) {
   }
 
   async onSucceeded(payload) {
+    const isBase64Encoded = (payload instanceof Buffer);
+    const body = (!payload || typeof payload === 'string')
+      ? payload
+      : (payload instanceof Buffer)
+        ? payload.toString('base64')
+        : JSON.stringify(payload);
     return {
       statusCode: 200,
       headers: this.getCORS(payload),
-      body: (!payload || typeof payload === 'string')
-        ? payload
-        : JSON.stringify(payload),
+      body,
+      isBase64Encoded,
     };
   }
 
@@ -177,10 +185,13 @@ class ApiRequest extends mxValidation(class {}) {
 
   getCORS(data) {
     const h0 = this.headers || {};
+    const contentType = (!data || typeof data === 'string')
+      ? 'text/plain'
+      : (data instanceof Buffer)
+        ? 'application/octet-stream'
+        : 'application/json';
     return {
-      'Content-Type': (!data || typeof data === 'string')
-        ? 'text/plain'
-        : 'application/json',
+      'Content-Type': contentType,
       'Access-Control-Allow-Methods': ApiRequest.Constants.AllowMethods.join(', '),
       'Access-Control-Allow-Headers': ApiRequest.Constants.AllowHeaders.join(', '),
       'Access-Control-Allow-Origin': h0.Origin || h0.origin || h0['X-Forwarded-For'] || '*',
@@ -276,7 +287,6 @@ class ApiRequest extends mxValidation(class {}) {
     if (missing.length) {
       throw new Error(`missing ${missing.join(', ')}`);
     }
-
     missing = [
       'VideoMetadata',
       'Segments',
@@ -284,9 +294,8 @@ class ApiRequest extends mxValidation(class {}) {
     if (missing.length) {
       throw new Error('invalid Segment JSON format');
     }
-
-    const edl = this.createEDLFile(this.body.name, this.body.data);
-    return this.onSucceeded(edl);
+    const zipFile = this.createEDLZipFile(this.body.name, this.body.data);
+    return this.onSucceeded(zipFile.toString('base64'));
   }
 
   async startExecution(arn, data) {
@@ -350,29 +359,50 @@ class ApiRequest extends mxValidation(class {}) {
       : undefined;
   }
 
-  createEDLFile(name, data) {
+  createEDLZipFile(name, data) {
+    const detections = {};
     const parsed = PATH.parse(name);
-    let idx = 0;
-    const events = [];
+    const title = parsed.name.replace(/[\W_]+/g, ' ');
     while (data.Segments.length) {
       const segment = data.Segments.shift();
-      if (segment.Type !== 'SHOT') {
-        continue;
+      if (segment.Type === TYPE_SHOT) {
+        const type = segment.Type.toLowerCase();
+        if (detections[type] === undefined) {
+          detections[type] = [];
+        }
+        detections[type].push({
+          id: detections[type].length + 1,
+          reelName: `Shot ${segment.ShotSegment.Index.toString().padStart(3, '0')}`,
+          clipName: parsed.name,
+          startTime: segment.StartTimecodeSMPTE,
+          endTime: segment.EndTimecodeSMPTE,
+        });
+      } else {
+        const type = segment.TechnicalCueSegment.Type.toLowerCase();
+        if (detections[type] === undefined) {
+          detections[type] = [];
+        }
+        detections[type].push({
+          id: detections[type].length + 1,
+          reelName: `${segment.TechnicalCueSegment.Type.substring(0, 5)}${String(detections[type].length).padStart(3, '0')}`,
+          clipName: parsed.name,
+          startTime: segment.StartTimecodeSMPTE,
+          endTime: segment.EndTimecodeSMPTE,
+        });
       }
-      events.push({
-        id: idx + 1,
-        startTime: segment.StartTimecodeSMPTE,
-        endTime: segment.EndTimecodeSMPTE,
-        reelName: `Shot ${segment.ShotSegment.Index.toString().padStart(3, '0')}`,
-        clipName: parsed.name,
-      });
-      idx++;
     }
-    const edl = new EDLComposer({
-      title: parsed.name.replace(/[\W_]+/g, ' '),
-      events,
+    const zip = new AdmZip();
+    Object.keys(detections).forEach((type) => {
+      if (detections[type] === undefined || detections[type].length === 0) {
+        return;
+      }
+      const edl = new EDLComposer({
+        title,
+        events: detections[type],
+      });
+      zip.addFile(`${type}.edl`, Buffer.from(edl.compose(), 'utf8'), type);
     });
-    return edl.compose();
+    return zip.toBuffer();
   }
 }
 
