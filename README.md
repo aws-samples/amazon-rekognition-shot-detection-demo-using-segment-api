@@ -1,36 +1,119 @@
 # Amazon Rekognition Shot Detection Demo using Segment API
 
-This demo solution demostrates how to use [Amazon Rekognition Video Segment Detection](https://docs.aws.amazon.com/rekognition/latest/dg/segments.html) to detect shot segments _whenever a camera shot has changed_ and technical cues such as _Black Frames_, _End Credits_, and _Color Bar_.
+This demo solution demostrates how to use [Amazon Rekognition Video Segment Detection](https://docs.aws.amazon.com/rekognition/latest/dg/segments.html) to detect segments _whenever a camera shot has changed_ and technical cues such as _Opening Credits_, _Content_, _End Credits_, _Black Frames_, _Slate_, _Studio Logo_, and _Color Bar_.
 
 The demo solution consists of three components, a backend AWS Step Functions state machine, a frontend web user interface, and an Amazon API Gateway RESTful endpoint. The backend state machine uses AWS Elemental MediaConvert to create proxy video and JPEG thumbnails (for streaming and analysis purposes), and runs Amazon Rekognition Video Segment detection to extract the shot segments and technical cues metadata. The frontend web user interface allows user to upload video(s), monitors the detection process, and view the detection results. The frontend and backend communicate through an RESTful API endpoint created by Amazon API Gateway.
 
 The animated GIFs illustrate how this demo solution works.
 
-## Upload, analyze, and view detection results
+__
 
-![Upload, analyze and view detection results](./deployment/images/shot-detection-demo.gif)
+## Upload, analyze, and visualize detection results
 
+The demo solution allows you to upload, analyze video(s), and visualize the detection through the web portal. After log in to the web portal, simply drag and drop video files to the portal to start the analysis process which starts a workflow to run Amazon Rekognition Segment API to detect the segments and technical cues. Once the video is fully analyzed, you can play the video and visualize the detection results (Shots and Technical Cues) by toggling the _Opening Credit_, _End Credit_, _Shot_, _Content_ buttons. The result is overlay on the video frame. The animated GIF below demonstrates the workflow.
 
-## Export and import Edit Decision List (EDL) to editing software
-
-An example of importing EDL to [Adobe Premiere Pro](https://www.adobe.com/products/premiere.html)
-
-![Export and Import EDL](./deployment/images/import-with-adobe-premerie-pro.gif)
+![Upload, analyze and view detection results](./deployment/images/segment-detection.gif)
 
 __
 
+## Simple convert JSON to EDL format
 
-An example of importing EDL to [Blackmagic Design Davinci Resolve 16](https://www.blackmagicdesign.com/products/davinciresolve/).
-
-![Export and Import EDL](./deployment/images/export-import-edl.gif)
-
-
-## Simple convert JSON to EDL
-The demo solution also exposes the web user interface (SimpConvert tab) to convert the JSON result from Amazon Rekognition Segment API into Edit Decision List (EDL) without running the analysis process.
+If you have already run Amazon Rekognition Segment API, you can use the demo solution to convert the Segment JSON result to EDL file format. After log in to the web portal, click on *SimpleConvert* tab. Drag and drop the JSON file to the portal and click on *Start convert* button. Once the JSON file is converted, click on *Download EDL Package* to download the EDL package. The following animated GIF demonstrates how you can convert the JSON file.
 
 ![Simple convert JSON to EDL](./deployment/images/simple-convert.gif)
 
-___
+__
+
+## An example of importing EDL to BlackMagic Design Davinci Resolve
+
+Once you download and unzip the EDL package, each of the EDL files can then be imported into NLE tool as a _timeline_ element. The following GIF animation demonstrates how you can import the AI generated EDL file into BlackMagic Design Davinci Resolve. Open Davinci Resolve and create a New Project. Drag and drop the video into the *media pool* area. Click on *File > Import > Timeline* and select one of the EDL files; i.e., shot.edl to import. After importing, all the shot segments are presented in the timeline as elements with frame accuracy. You can navigate the timeline to find individual segment and edit the clip.
+
+An example of importing EDL to [Blackmagic Design Davinci Resolve 17](https://www.blackmagicdesign.com/products/davinciresolve/).
+
+![Export and Import EDL](./deployment/images/import-davinci.gif)
+
+__
+
+## Converting from JSON to Edit Decision List (EDL) CMX3600 Format
+
+To understand how the conversion works, let us take a closer look at the EDL file format and the JSON response of segment response.
+
+### EDL Format
+```
+TITLE: TEARSOFSTEEL 4K
+FCM: NON-DROP FRAME
+
+001  SHOT000  V     C     00:00:00:00 00:00:08:21 00:00:00:00 00:00:08:21
+* FROM CLIP NAME: tearsofsteel_4k.mov
+
+002  SHOT001  V     C     00:00:08:22 00:00:13:10 00:00:08:21 00:00:13:10
+* FROM CLIP NAME: tearsofsteel_4k.mov
+```
+
+where
+
+| | |
+|:-|:-|
+| 001 | Field 1, the edit decision number |
+| SHOT000 | Field 2, the reel number |
+| V | Field 3, the element is in interested. "V" represents "Video only" |
+| C | Field 4, operation of the decision. "C" represents "Cut" |
+| SPACE | Field 5, type of transition. In our case, " " is used for "Cut" operation |
+| 00:00:00:00 | Field 6, source Play IN time |
+| 00:00:08:21 | Field 7, source Play OUT time |
+| 00:00:00:00 | Field 8, source Record IN time. (For our purpose, this field is same as Play IN time.) |
+| 00:00:08:21 | Field 9, source Record OUT time. (For our purpose, this field is same as Play OUT time.) |
+
+Without going into details of the EDL CMX 3600 specification, we can still see that the EDL file contains a list of the decision / transitions (“Cut” for instance) and the timing information such as IN and OUT time.
+
+_
+
+### Amazon Rekognition Segment JSON Result
+Now, let us examine the JSON response from Amazon Rekognition Segment API.
+
+```json
+{
+  "Segments": [
+    ...,
+    {
+      "Type": "SHOT",
+      "StartTimestampMillis": 0,
+      "EndTimestampMillis": 8875,
+      "DurationMillis": 8875,
+      "StartTimecodeSMPTE": "00:00:00:00",
+      "EndTimecodeSMPTE": "00:00:08:21",
+      "DurationSMPTE": "00:00:08:21",
+      "ShotSegment": {
+        "Index": 0,
+        "Confidence": 99.89203643798828
+      }
+    },
+    {
+      "Type": "SHOT",
+      "StartTimestampMillis": 8916,
+      "EndTimestampMillis": 13416,
+      "DurationMillis": 4500,
+      "StartTimecodeSMPTE": "00:00:08:22",
+      "EndTimecodeSMPTE": "00:00:13:10",
+      "DurationSMPTE": "00:00:04:12",
+      "ShotSegment": {
+        "Index": 1,
+        "Confidence": 99.88211059570312
+      }
+    },
+    ...,
+  ]
+}
+
+```
+
+As show above, the JSON response already provides frame accurate, SMPTE start and end timecodes of each detection such as *StartTimecodeSMPTE*, *EndTimecodeSMPTE*, *ShotSegment Index*.
+
+Converting to EDL file format is as simple as mapping the start and end SMPTE timecodes of the detection and formatting it into a compatible EDL CMX3600 decision lines.
+
+![Mapping Segment to EDL](./deployment/images/segment-to-edl.png)
+
+__
 
 # Architecture overview
 
@@ -60,12 +143,13 @@ The solution is deployed using an AWS CloudFormation template with AWS Lambda ba
 
 | AWS Region | AWS CloudFormation Template URL |
 |:-----------|:----------------------------|
-| EU (Ireland) |<a href="https://console.aws.amazon.com/cloudformation/home?region=eu-west-1#/stacks/new?stackName=shot-detection&templateURL=https%3A%2F%2Fml-specialist-sa-demo-eu-west-1.s3-eu-west-1.amazonaws.com%2Fshot-detection-demo%2F1.0.0%2Fshot-detection-demo.template" target="_blank">Launch stack</a> |
-| US East (N. Virginia) |<a href="https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/new?stackName=shot-detection&templateURL=https%3A%2F%2Fml-specialist-sa-demo-us-east-1.s3.amazonaws.com%2Fshot-detection-demo%2F1.0.0%2Fshot-detection-demo.template" target="_blank">Launch stack</a> |
-| US East (Ohio) |<a href="https://console.aws.amazon.com/cloudformation/home?region=us-east-2#/stacks/new?stackName=shot-detection&templateURL=https%3A%2F%2Fml-specialist-sa-demo-us-east-2.s3.amazonaws.com%2Fshot-detection-demo%2F1.0.0%2Fshot-detection-demo.template" target="_blank">Launch stack</a> |
-| US West (Oregon) |<a href="https://console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/new?stackName=shot-detection&templateURL=https%3A%2F%2Fml-specialist-sa-demo-us-west-2.s3-us-west-2.amazonaws.com%2Fshot-detection-demo%2F1.0.0%2Fshot-detection-demo.template" target="_blank">Launch stack</a> |
-| Asia Pacific (Tokyo) |<a href="https://console.aws.amazon.com/cloudformation/home?region=ap-northeast-1#/stacks/new?stackName=shot-detection&templateURL=https%3A%2F%2Fml-specialist-sa-demo-ap-northeast-1.s3-ap-northeast-1.amazonaws.com%2Fshot-detection-demo%2F1.0.0%2Fshot-detection-demo.template" target="_blank">Launch stack</a> |
+| EU (Ireland) |<a href="https://console.aws.amazon.com/cloudformation/home?region=eu-west-1#/stacks/new?stackName=segment-detection&templateURL=https%3A%2F%2Fmediaent-solution-eu-west-1.s3.eu-west-1.amazonaws.com%2Fshot-detection-demo%2Flatest%2Fmain.template" target="_blank">Launch stack</a> |
+| US East (N. Virginia) |<a href="https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/new?stackName=segment-detection&templateURL=https%3A%2F%2Fmediaent-solution-us-east-1.s3.amazonaws.com%2Fshot-detection-demo%2Flatest%2Fmain.template" target="_blank">Launch stack</a> |
+| US East (Ohio) |<a href="https://console.aws.amazon.com/cloudformation/home?region=us-east-2#/stacks/new?stackName=segment-detection&templateURL=https%3A%2F%2Fmediaent-solution-us-east-2.s3.us-east-2.amazonaws.com%2Fshot-detection-demo%2Flatest%2Fmain.template" target="_blank">Launch stack</a> |
+| US West (Oregon) |<a href="https://console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/new?stackName=segment-detection&templateURL=https%3A%2F%2Fmediaent-solution-us-west-2.s3.us-west-2.amazonaws.com%2Fshot-detection-demo%2Flatest%2Fmain.template" target="_blank">Launch stack</a> |
+| Asia Pacific (Tokyo) |<a href="https://console.aws.amazon.com/cloudformation/home?region=ap-northeast-1#/stacks/new?stackName=segment-detection&templateURL=https%3A%2F%2Fmediaent-solution-ap-northeast-1.s3.ap-northeast-1.amazonaws.com%2Fshot-detection-demo%2Flatest%2Fmain.template" target="_blank">Launch stack</a> |
 
+_
 
 * Under **Create stack** page, click **Next** to continue
 
@@ -96,7 +180,7 @@ The sample code is written in NodeJS v10.x. Before you start, please make sure N
 
 
 ### NodeJS
-Make sure you install NodeJS 10.x or above onto your system.
+Make sure you install NodeJS 14.x onto your system.
 
 For MAC user, download and install from [nodejs.org](https://nodejs.org/en/download/). Alternatively, you can also use Homebrew.
 
@@ -148,10 +232,8 @@ bash deploy-s3-dist.sh --bucket your-bucket
 
 # optionally you could specify different AWS CLI Profile,
 # AWS CLI profile (default to 'default')
-# and ACL settings (default to bucket-owner-full-control)
 bash deploy-s3-dist.sh --bucket your-bucket \
---profile DevProfile \
---acl public-read
+--profile DevProfile
 
 ```
 
@@ -159,18 +241,19 @@ Now you should have all the code packages and CFN templates uploaded to your S3 
 
 Log in to [AWS S3 Console](https://s3.console.aws.amazon.com/s3/home) and navigate to the bucket you created.
 
-Make sure you see the following files under **/shot-detection-demo/1.0.0/**
+Make sure you see the following files under **/shot-detection-demo/2.0.0/**
 
 | Name | Description |
 |:---  |:------------|
-| shot-detection-demo.template | cloudformation template to create the solution |
-| shot-detection-demo-custom-resources-1.0.0.zip | a package of custom resource lambda function used by cloudformation template |
-| shot-detection-demo-api-1.0.0.zip | a package of lambad functiom that handles GET, POST, and OPTIONS requests from Amazon API Gateway endpoint |
-| shot-detection-demo-core-lib-1.0.0.zip | a lambda layer package of the core library shared among other lambda functions |
-| shot-detection-demo-mediainfo-1.0.0.zip | a lambda layer package of mediainfo used to extract media information of uploaded videos |
-| shot-detection-demo-step-1.0.0.zip | a package of lamba function contained the actual implementation of each state of AWS Step Functions state machine |
-| shot-detection-demo-status-updater-1.0.0.zip | a package of lambda function to receive events from Amazon CloudWatch Event and Amazon Simple Notification Service (SNS) and to send task result signaling the AWS Step Functions state machine execution when a task is completed or failed. |
-| shot-detection-demo-webapp-1.0.0.zip | a package of the webapp code |
+| main.template | main cloudformation template to create the solution |
+| shot-detection-demo.template | template to create resources |
+| shot-detection-demo-custom-resources-2.0.0.zip | a package of custom resource lambda function used by cloudformation template |
+| shot-detection-demo-api-2.0.0.zip | a package of lambad functiom that handles GET, POST, and OPTIONS requests from Amazon API Gateway endpoint |
+| shot-detection-demo-core-lib-2.0.0.zip | a lambda layer package of the core library shared among other lambda functions |
+| shot-detection-demo-mediainfo-2.0.0.zip | a lambda layer package of mediainfo used to extract media information of uploaded videos |
+| shot-detection-demo-step-2.0.0.zip | a package of lamba function contained the actual implementation of each state of AWS Step Functions state machine |
+| shot-detection-demo-status-updater-2.0.0.zip | a package of lambda function to receive events from Amazon CloudWatch Event and Amazon Simple Notification Service (SNS) and to send task result signaling the AWS Step Functions state machine execution when a task is completed or failed. |
+| shot-detection-demo-webapp-2.0.0.zip | a package of the webapp code |
 
 ___
 
@@ -204,7 +287,7 @@ This section covers two different methods to deploy your customized solution: 1)
 ```shell
 aws cloudformation create-stack \
 --stack-name shot-detection \
---template-url https://your-bucket.s3.amazonaws.com/shot-detection-demo/1.0.0/shot-detection-demo.template  \
+--template-url https://your-bucket.s3.amazonaws.com/shot-detection-demo/latest/main.template  \
 --parameters file://cfn-input.json \
 --capabilities "CAPABILITY_IAM"
 
