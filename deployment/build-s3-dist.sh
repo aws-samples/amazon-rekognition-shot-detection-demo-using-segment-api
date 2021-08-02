@@ -138,17 +138,17 @@ function install_dev_dependencies() {
   npm install -g \
     aws-sdk \
     aws-sdk-mock \
-    browserify \
     chai \
     eslint \
     eslint-config-airbnb-base \
     eslint-plugin-import \
+    browserify \
+    terser \
     mocha \
     nock \
     npm-run-all \
     sinon \
-    sinon-chai \
-    uglify-es
+    sinon-chai
   popd
 }
 
@@ -295,7 +295,7 @@ function build_custom_resources_package() {
   npm run build
   # explicitly package core-lib into custom resource package
   pushd dist
-  npm install --production --no-save "$LOCAL_PKG_CORE_LIB"
+  npm install --no-save "$LOCAL_PKG_CORE_LIB"
   popd
   #
   npm run zip -- "$PKG_CUSTOM_RESOURCES" .

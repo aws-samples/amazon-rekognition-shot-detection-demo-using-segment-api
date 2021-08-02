@@ -1,0 +1,2167 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: Segment Detection Demo - demonstrates using Amazon Rekognition Segment V2 API to extract shots, opencredits, content, endcredits, blackframes, slate, studio logo in video. (uksb-1s3reu77b) (version:%VERSION%)
+
+Mappings:
+    Solution:
+        Package:
+            CustomResourceX: "%PKG_CUSTOM_RESOURCES%"
+            ShotDetection: "%PKG_SHOT_DETECTION%"
+            StatusUpdater: "%PKG_STATUS_UPDATER%"
+            Api: "%PKG_API%"
+            WebApp: "%PKG_WEBAPP%"
+        Layer:
+            AwsSdk: "%LAYER_AWSSDK%"
+            CoreLib: "%LAYER_CORE_LIB%"
+            Mediainfo: "%LAYER_MEDIAINFO%"
+        APIGateway:
+            StageName: demo
+        SNS:
+            ServiceTopic: ServiceSNS
+    Workflow:
+        CustomResourceX:
+            Name: custom-resources
+        ShotDetection:
+            Name: shot-detection
+        StatusUpdater:
+            Name: status-updater
+        Api:
+            Name: api
+    DynamoDB:
+        ServiceToken:
+            PartitionKey: id
+            SortKey: keyword
+    Node:
+        Runtime:
+            Version: nodejs14.x
+
+Parameters:
+    S3Bucket:
+        Type: String
+        Description: stack bucket name
+    KeyPrefix:
+        Type: String
+        Description: stack object key prefix
+    SolutionId:
+        Type: String
+        Description: solution id
+    SolutionLowerCaseId:
+        Type: String
+        Description: solution id (lower case)
+    ProjectVersion:
+        Type: String
+        Description: solution project version
+    StackId:
+        Type: String
+        Description: root stack Id
+    ResourcePrefix:
+        Type: String
+        Description: resource naming prefix
+    Email:
+        Type: String
+        Description: Email address of the user that will be created in the Amazon Cognito User Pool to access the demo portal.
+        AllowedPattern: '[^\s@]+@[^\s@]+\.[^\s@]+'
+    PriceClass:
+        Type: String
+        Description: Specify the price class of the edge location from which CloudFront serves your requests. For more information, see https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/PriceClass.html
+        AllowedValues:
+            - PriceClass_100
+            - PriceClass_200
+            - PriceClass_All
+        Default: PriceClass_100
+
+Conditions:
+    bUSEast1: !Equals
+        - !Ref AWS::Region
+        - us-east-1
+
+Resources:
+    ################################################################################
+    #
+    # CloudFormation Custom Resource lambda
+    # * Used during Stack create, update, and delete
+    #
+    ################################################################################
+    CustomResourceLogGroup:
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W84
+                        reason: Log group data is always encrypted in CloudWatch Logs. Disable additional KMS encryption requirement. https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html
+        Type: AWS::Logs::LogGroup
+        Properties:
+            LogGroupName: !Sub
+                - "/aws/lambda/${ResourcePrefix}-${name}"
+                - name: !FindInMap
+                    - Workflow
+                    - CustomResourceX
+                    - Name
+            RetentionInDays: 7
+
+    CustomResourceRole:
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W11
+                        reason: This wildcard is present as the custom resource lambda needs to be able to access contents within the bucket!
+                    -
+                        id: W28
+                        reason: Intentionally set resource name
+        Type: AWS::IAM::Role
+        Properties:
+            RoleName: !Sub
+                - "${ResourcePrefix}-${name}-role"
+                - name: !FindInMap
+                    - Workflow
+                    - CustomResourceX
+                    - Name
+            AssumeRolePolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                    -
+                        Effect: "Allow"
+                        Action: "sts:AssumeRole"
+                        Principal:
+                            Service: "lambda.amazonaws.com"
+            Path: !Sub "/${ResourcePrefix}/"
+            Policies:
+                -
+                    PolicyName: !Sub
+                        - "${ResourcePrefix}-${name}-policy"
+                        - name: !FindInMap
+                            - Workflow
+                            - CustomResourceX
+                            - Name
+                    PolicyDocument:
+                        Version: "2012-10-17"
+                        Statement:
+                            ## CloudWatch Logs
+                            -
+                                Effect: Allow
+                                Action:
+                                    - logs:CreateLogGroup
+                                    - logs:CreateLogStream
+                                    - logs:PutLogEvents
+                                Resource: !GetAtt CustomResourceLogGroup.Arn
+                            ## S3 - ListBucket
+                            -
+                                Effect: Allow
+                                Action:
+                                    - s3:ListBucket
+                                    - s3:GetBucketCORS
+                                    - s3:PutBucketCORS
+                                Resource:
+                                    - !Sub "arn:aws:s3:::${ResourcePrefix}-${AWS::AccountId}-${AWS::Region}-source"
+                                    - !Sub "arn:aws:s3:::${ResourcePrefix}-${AWS::AccountId}-${AWS::Region}-web"
+                            ## S3 - Read/Write and Update CORS settings
+                            -
+                                Effect: Allow
+                                Action:
+                                    - s3:GetObject
+                                    - s3:PutObject
+                                    - s3:DeleteObject
+                                Resource:
+                                    - !Sub "arn:aws:s3:::${ResourcePrefix}-${AWS::AccountId}-${AWS::Region}-source/*"
+                                    - !Sub "arn:aws:s3:::${ResourcePrefix}-${AWS::AccountId}-${AWS::Region}-web/*"
+                            ## S3 - Download webapp package from stack bucket
+                            -
+                                Effect: Allow
+                                Action: s3:GetObject
+                                Resource: !Sub
+                                    - "arn:aws:s3:::${S3Bucket}/${KeyPrefix}/${webapp}"
+                                    - webapp: !FindInMap
+                                        - Solution
+                                        - Package
+                                        - WebApp
+                            ## Cognito - Create user during stack creation
+                            -
+                                Effect: Allow
+                                Action: cognito-idp:AdminCreateUser
+                                Resource: !Sub "arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/*"
+                            # IAM - Pass Custom Resource Role to Cognito, required by AdminCreateUser
+                            -
+                                Effect: Allow
+                                Action: iam:PassRole
+                                Resource: !Sub
+                                    - "arn:aws:iam::${AWS::AccountId}:role/${ResourcePrefix}/${ResourcePrefix}-${name}-role"
+                                    - name: !FindInMap
+                                        - Workflow
+                                        - CustomResourceX
+                                        - Name
+                            ## MediaConvert
+                            -
+                                Effect: Allow
+                                Action: mediaConvert:DescribeEndpoints
+                                Resource: !Sub "arn:aws:mediaconvert:${AWS::Region}:${AWS::AccountId}:*"
+                            ## APIGateway - allow to get current Account CloudWatchLogRole settings
+                            -
+                                Effect: Allow
+                                Action: apigateway:GET
+                                Resource: !Sub "arn:aws:apigateway:${AWS::Region}::/account"
+                            ## IAM - allow getRole to confirm current Account CloudWatchLogRole does exist
+                            -
+                                Effect: Allow
+                                Action: iam:GetRole
+                                Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/*"
+
+    CustomResourceLambda:
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W89
+                        reason: Not using VPC
+                    -
+                        id: W92
+                        reason: Not using ReservedConcurrentExecutions feature
+        Type: AWS::Lambda::Function
+        Properties:
+            FunctionName: !Sub
+                - "${ResourcePrefix}-${name}"
+                - name: !FindInMap
+                    - Workflow
+                    - CustomResourceX
+                    - Name
+            Description: !Sub "(${SolutionLowerCaseId}) custom resource lambda"
+            Runtime: !FindInMap
+                - Node
+                - Runtime
+                - Version
+            MemorySize: 256
+            Timeout: 900
+            Handler: index.handler
+            Role: !GetAtt CustomResourceRole.Arn
+            Code:
+                S3Bucket: !Ref S3Bucket
+                S3Key: !Sub
+                    - "${KeyPrefix}/${name}"
+                    - name: !FindInMap
+                        - Solution
+                        - Package
+                        - CustomResourceX
+            Tags:
+                -
+                    Key: SolutionId
+                    Value: !Ref SolutionId
+
+    ################################################################################
+    #
+    # Bucket resources
+    # * Logs and Source (to store training and processing images)
+    #
+    ################################################################################
+    LogsBucket:
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W35
+                        reason: This is logs bucket. Intentionally disables logs on log bucket.
+        Type: AWS::S3::Bucket
+        DeletionPolicy: Retain
+        UpdateReplacePolicy: Retain
+        Properties:
+            BucketName: !Sub "${ResourcePrefix}-${AWS::AccountId}-${AWS::Region}-logs"
+            BucketEncryption:
+                ServerSideEncryptionConfiguration:
+                    -
+                      ServerSideEncryptionByDefault:
+                          SSEAlgorithm: AES256
+            AccessControl: LogDeliveryWrite
+            LifecycleConfiguration:
+                Rules:
+                    -
+                        Id: Keep access logs for 1 day
+                        Status: Enabled
+                        Prefix: /
+                        ExpirationInDays: 1
+                        AbortIncompleteMultipartUpload:
+                            DaysAfterInitiation: 1
+            Tags:
+                -
+                    Key: SolutionId
+                    Value: !Ref SolutionId
+            VersioningConfiguration:
+                Status: Suspended
+
+    LogsBucketPolicy:
+        Type: AWS::S3::BucketPolicy
+        Properties:
+            Bucket: !Ref LogsBucket
+            PolicyDocument:
+                Statement:
+                    -
+                        Effect: Deny
+                        Principal: "*"
+                        Action: "*"
+                        Resource: !Sub "arn:aws:s3:::${LogsBucket}/*"
+                        Condition:
+                            Bool:
+                                "aws:SecureTransport": false
+
+    SourceBucket:
+        Type: AWS::S3::Bucket
+        DeletionPolicy: Retain
+        UpdateReplacePolicy: Retain
+        Properties:
+            BucketName: !Sub "${ResourcePrefix}-${AWS::AccountId}-${AWS::Region}-source"
+            BucketEncryption:
+                ServerSideEncryptionConfiguration:
+                    -
+                      ServerSideEncryptionByDefault:
+                          SSEAlgorithm: AES256
+            AccelerateConfiguration:
+                AccelerationStatus: Enabled
+            AccessControl: LogDeliveryWrite
+            LoggingConfiguration:
+                DestinationBucketName: !Ref LogsBucket
+                LogFilePrefix: "access_logs_source_bucket/"
+            CorsConfiguration:
+                CorsRules:
+                    -
+                        AllowedMethods:
+                            - HEAD
+                            - GET
+                            - PUT
+                            - POST
+                        AllowedOrigins:
+                            - "*"
+                        AllowedHeaders:
+                            - "*"
+                        ExposedHeaders:
+                            - ETag
+                            - Content-Length
+                        MaxAge: 3000
+            LifecycleConfiguration:
+                Rules:
+                    -
+                        Id: Use Intelligent tier
+                        Status: Enabled
+                        Transitions:
+                            -
+                                StorageClass: INTELLIGENT_TIERING
+                                TransitionInDays: 0
+                        AbortIncompleteMultipartUpload:
+                            DaysAfterInitiation: 7
+                    -
+                        Id: Keep previous version for 1 day
+                        Status: Enabled
+                        NoncurrentVersionExpirationInDays: 1
+                        AbortIncompleteMultipartUpload:
+                            DaysAfterInitiation: 1
+            Tags:
+                -
+                    Key: SolutionId
+                    Value: !Ref SolutionId
+            VersioningConfiguration:
+                Status: Enabled
+
+    SourceBucketPolicy:
+        Type: AWS::S3::BucketPolicy
+        Properties:
+            Bucket: !Ref SourceBucket
+            PolicyDocument:
+                Statement:
+                    -
+                        Effect: Deny
+                        Principal: "*"
+                        Action: "*"
+                        Resource: !Sub "arn:aws:s3:::${SourceBucket}/*"
+                        Condition:
+                            Bool:
+                                "aws:SecureTransport": false
+                    # Amazon Rekognition Custom Labels specific
+                    -
+                        Effect: Allow
+                        Principal:
+                            Service: rekognition.amazonaws.com
+                        Action:
+                            - s3:GetBucketAcl
+                            - s3:GetBucketLocation
+                        Resource: !Sub "arn:aws:s3:::${SourceBucket}"
+                    -
+                        Effect: Allow
+                        Principal:
+                            Service: rekognition.amazonaws.com
+                        Action:
+                            - s3:GetObject
+                            - s3:GetObjectAcl
+                            - s3:GetObjectVersion
+                            - s3:GetObjectTagging
+                        Resource: !Sub "arn:aws:s3:::${SourceBucket}/*"
+                    -
+                        Effect: Allow
+                        Principal:
+                            Service: rekognition.amazonaws.com
+                        Action: s3:PutObject
+                        Resource: !Sub "arn:aws:s3:::${SourceBucket}/*"
+                        Condition:
+                            StringEquals:
+                                "s3:x-amz-acl": "bucket-owner-full-control"
+
+    ################################################################################
+    #
+    # Amazon Lambda Layers
+    # * AWS SDK
+    # * Core Library
+    # * Mediainfo
+    #
+    ################################################################################
+    AwsSdkLayer:
+        Type: AWS::Lambda::LayerVersion
+        Properties:
+            LayerName: !Sub "${ResourcePrefix}-layer-aws-sdk"
+            CompatibleRuntimes:
+                - nodejs14.x
+            Content:
+                S3Bucket: !Ref S3Bucket
+                S3Key: !Sub
+                    - "${KeyPrefix}/${name}"
+                    - name: !FindInMap
+                        - Solution
+                        - Layer
+                        - AwsSdk
+            Description: !Sub "(${SolutionLowerCaseId}) latest aws-sdk layer"
+            LicenseInfo: MIT-0
+
+    CoreLibLayer:
+        Type: AWS::Lambda::LayerVersion
+        Properties:
+            LayerName: !Sub "${ResourcePrefix}-layer-core-lib"
+            CompatibleRuntimes:
+                - nodejs14.x
+            Content:
+                S3Bucket: !Ref S3Bucket
+                S3Key: !Sub
+                    - "${KeyPrefix}/${name}"
+                    - name: !FindInMap
+                        - Solution
+                        - Layer
+                        - CoreLib
+            Description: !Sub "(${SolutionLowerCaseId}) core library layer"
+            LicenseInfo: MIT-0
+
+    MediainfoLayer:
+        Type: AWS::Lambda::LayerVersion
+        Properties:
+            LayerName: !Sub "${ResourcePrefix}-layer-mediainfo"
+            CompatibleRuntimes:
+                - nodejs14.x
+            Content:
+                S3Bucket: !Ref S3Bucket
+                S3Key: !Sub
+                    - "${KeyPrefix}/${name}"
+                    - name: !FindInMap
+                        - Solution
+                        - Layer
+                        - Mediainfo
+            Description: !Sub "(${SolutionLowerCaseId}) mediainfo layer"
+            LicenseInfo: MIT-0
+
+    ################################################################################
+    #
+    # Amazon Simple Notification Service (SNS)
+    # * SNS topic is used by Amazon Rekognition to send notification to the workflow
+    #
+    ################################################################################
+    ServiceTopic:
+        Type: AWS::SNS::Topic
+        Properties:
+            TopicName: !Sub "${ResourcePrefix}-service-token"
+            DisplayName: !FindInMap
+                - Solution
+                - SNS
+                - ServiceTopic
+            KmsMasterKeyId: alias/aws/sns
+
+    ServiceTopicPolicy:
+        Type: AWS::SNS::TopicPolicy
+        Properties:
+            Topics:
+                - !Ref ServiceTopic
+            PolicyDocument:
+                Id: !Sub "${ResourcePrefix}-service-token-id"
+                Version: "2012-10-17"
+                Statement:
+                    -
+                        Sid: AllowRekognitionPublishToServiceTopic
+                        Effect: Allow
+                        Principal:
+                            Service: rekognition.amazonaws.com
+                        Action: sns:Publish
+                        Resource: !Ref ServiceTopic
+
+    ServiceTopicRole:
+        Type: AWS::IAM::Role
+        Properties:
+            AssumeRolePolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                    -
+                        Effect: Allow
+                        Action: sts:AssumeRole
+                        Principal:
+                            Service: rekognition.amazonaws.com
+            Path: !Sub "/${ResourcePrefix}/"
+            Policies:
+                -
+                    PolicyName: !Sub "${ResourcePrefix}-services-sns-role"
+                    PolicyDocument:
+                        Version: "2012-10-17"
+                        Statement:
+                            -
+                                Effect: Allow
+                                Action: sns:Publish
+                                Resource: !Ref ServiceTopic
+
+
+    ################################################################################
+    #
+    # AWS Elemental MediaConvert
+    # * MediaConvert is used by the workflow to create proxy video such that
+    #   the solution can support wider range of input formats
+    #
+    ################################################################################
+    MediaConvertRole:
+        Type: AWS::IAM::Role
+        Properties:
+            AssumeRolePolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                    -
+                        Effect: Allow
+                        Action: sts:AssumeRole
+                        Principal:
+                            Service: mediaconvert.amazonaws.com
+            # Note: MediaConvert only takes '/' or '/service-role/' paths.
+            # '/some-random-string/' will throw an error 'Invalid role provided in RESOURCE_ROLE_ARN' with code 1432
+            Path: /service-role/
+            Policies:
+                -
+                    PolicyName: !Sub "${ResourcePrefix}-mediaconvert-role"
+                    PolicyDocument:
+                        Version: "2012-10-17"
+                        Statement:
+                            # S3 read/write object
+                            -
+                                Effect: Allow
+                                Action:
+                                    - s3:GetObject
+                                    - s3:PutObject
+                                Resource: !Sub "arn:aws:s3:::${SourceBucket}/*"
+
+    # (Custom Resource) to describe MediaConvert Endpoint, returns
+    #   * Endpoint
+    #   * Status
+    DescribeMediaConvert:
+        Type: Custom::DescribeMediaConvert
+        Properties:
+            ServiceToken: !GetAtt CustomResourceLambda.Arn
+
+
+    ################################################################################
+    #
+    # Amazon DynamoDB
+    # * a DynamoDB table is used by the workflow to temporarily store Amazon Step
+    #   Functions state token such that we can use Service Integration technique
+    #   to send event to the state machine when Rekognition Segment detection is
+    #   completed.
+    #
+    ################################################################################
+    ServiceTokenTable:
+        Type: AWS::DynamoDB::Table
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W28
+                        reason: Table name is constructed with stack name. On update, we need to keep the existing table name.
+        Properties:
+            TableName: !Sub "${ResourcePrefix}-service-token"
+            BillingMode: PAY_PER_REQUEST
+            AttributeDefinitions:
+                -
+                    AttributeName: !FindInMap
+                        - DynamoDB
+                        - ServiceToken
+                        - PartitionKey
+                    AttributeType: S
+                -
+                    AttributeName: !FindInMap
+                        - DynamoDB
+                        - ServiceToken
+                        - SortKey
+                    AttributeType: S
+            KeySchema:
+                -
+                    AttributeName: !FindInMap
+                        - DynamoDB
+                        - ServiceToken
+                        - PartitionKey
+                    KeyType: HASH
+                -
+                    AttributeName: !FindInMap
+                        - DynamoDB
+                        - ServiceToken
+                        - SortKey
+                    KeyType: RANGE
+            SSESpecification:
+                SSEEnabled: true
+            PointInTimeRecoverySpecification:
+                PointInTimeRecoveryEnabled: true
+            TimeToLiveSpecification:
+                AttributeName: ttl
+                Enabled: true
+
+    ################################################################################
+    #
+    # AWS Step Functions state machine
+    # * State machine role
+    # * State machine Lambda role
+    # * State machine definition
+    #
+    ################################################################################
+    StateMachineRole:
+        Type: AWS::IAM::Role
+        Properties:
+            AssumeRolePolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                    -
+                        Effect: Allow
+                        Action: sts:AssumeRole
+                        Principal:
+                            Service: !Sub "states.${AWS::Region}.amazonaws.com"
+            Path: !Sub "/${ResourcePrefix}/"
+            Policies:
+                -
+                    PolicyName: !Sub "${ResourcePrefix}-statemachine-service-role"
+                    PolicyDocument:
+                        Version: "2012-10-17"
+                        Statement:
+                            -
+                                Effect: Allow
+                                Action: lambda:InvokeFunction
+                                Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${ResourcePrefix}-*"
+
+    ShotDetectionLogGroup:
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W84
+                        reason: Log group data is always encrypted in CloudWatch Logs. Disable additional KMS encryption requirement. https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html
+        Type: AWS::Logs::LogGroup
+        Properties:
+            LogGroupName: !Sub
+                - "/aws/lambda/${ResourcePrefix}-${name}"
+                - name: !FindInMap
+                    - Workflow
+                    - ShotDetection
+                    - Name
+            RetentionInDays: 7
+
+    ShotDetectionLargeLogGroup:
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W84
+                        reason: Log group data is always encrypted in CloudWatch Logs. Disable additional KMS encryption requirement. https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html
+        Type: AWS::Logs::LogGroup
+        Properties:
+            LogGroupName: !Sub
+                - "/aws/lambda/${ResourcePrefix}-${name}-large"
+                - name: !FindInMap
+                    - Workflow
+                    - ShotDetection
+                    - Name
+            RetentionInDays: 7
+
+    ShotDetectionLambdaRole:
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W11
+                        reason: This wildcard is present as required by Amazon Rekognition, https://docs.aws.amazon.com/service-authorization/latest/reference/list_amazonrekognition.html
+                    -
+                        id: W76
+                        reason: Suppress warnings of SPCM for IAM policy document is higher than 25
+        Type: AWS::IAM::Role
+        Properties:
+            AssumeRolePolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                    -
+                        Effect: Allow
+                        Action: sts:AssumeRole
+                        Principal:
+                            Service: lambda.amazonaws.com
+            Path: !Sub "/${ResourcePrefix}/"
+            Policies:
+                -
+                    PolicyName: !Sub "${ResourcePrefix}-shot-detection-role"
+                    PolicyDocument:
+                        Version: "2012-10-17"
+                        Statement:
+                            ## CloudWatch Logs
+                            -
+                                Effect: Allow
+                                Action:
+                                    - logs:CreateLogGroup
+                                    - logs:CreateLogStream
+                                    - logs:PutLogEvents
+                                Resource:
+                                    - !GetAtt ShotDetectionLogGroup.Arn
+                                    - !GetAtt ShotDetectionLargeLogGroup.Arn
+                            ## S3
+                            -
+                                Effect: Allow
+                                Action: s3:ListBucket
+                                Resource: !Sub "arn:aws:s3:::${SourceBucket}"
+                            -
+                                Effect: Allow
+                                Action:
+                                    - s3:GetObject
+                                    - s3:PutObject
+                                    - s3:SelectObjectContent
+                                Resource: !Sub "arn:aws:s3:::${SourceBucket}/*"
+                            ## MediaConvert
+                            -
+                                Effect: Allow
+                                Action: mediaConvert:CreateJob
+                                Resource: !Sub "arn:aws:mediaconvert:${AWS::Region}:${AWS::AccountId}:queues/Default"
+                            -
+                                Effect: Allow
+                                Action: mediaConvert:GetJob
+                                Resource: !Sub "arn:aws:mediaconvert:${AWS::Region}:${AWS::AccountId}:jobs/*"
+                            ## PassRole required by MediaConvert
+                            -
+                                Effect: Allow
+                                Action:
+                                    - iam:GetRole
+                                    - iam:PassRole
+                                Resource: !GetAtt MediaConvertRole.Arn
+                            ## DynamoDB
+                            -
+                                Effect: Allow
+                                Action:
+                                    - dynamodb:DeleteItem
+                                    - dynamodb:DescribeTable
+                                    - dynamodb:Query
+                                    - dynamodb:UpdateItem
+                                Resource: !GetAtt ServiceTokenTable.Arn
+                            ## Rekognition
+                            -
+                                Effect: Allow
+                                Action:
+                                    - rekognition:StartSegmentDetection
+                                    - rekognition:GetSegmentDetection
+                                Resource: "*"
+                            ## IAM - Pass SNS Role to Rekognition
+                            -
+                                Effect: Allow
+                                Action: iam:PassRole
+                                Resource: !GetAtt ServiceTopicRole.Arn
+
+    ShotDetectionLambda:
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W89
+                        reason: Not using VPC
+                    -
+                        id: W92
+                        reason: Not using ReservedConcurrentExecutions feature
+        Type: AWS::Lambda::Function
+        Properties:
+            FunctionName: !Sub
+                - "${ResourcePrefix}-${name}"
+                - name: !FindInMap
+                    - Workflow
+                    - ShotDetection
+                    - Name
+            Description: !Sub "(${SolutionLowerCaseId}) segment detection state lambda"
+            Runtime: !FindInMap
+                - Node
+                - Runtime
+                - Version
+            MemorySize: 128
+            Timeout: 900
+            Handler: index.handler
+            Role: !GetAtt ShotDetectionLambdaRole.Arn
+            Code:
+                S3Bucket: !Ref S3Bucket
+                S3Key: !Sub
+                    - "${KeyPrefix}/${name}"
+                    - name: !FindInMap
+                        - Solution
+                        - Package
+                        - ShotDetection
+            Layers:
+                - !Ref AwsSdkLayer
+                - !Ref CoreLibLayer
+                - !Ref MediainfoLayer
+            Environment:
+                Variables:
+                    ENV_SOLUTION_UUID: !Ref StackId
+                    ENV_MEDIACONVERT_HOST: !GetAtt DescribeMediaConvert.Endpoint
+                    ENV_MEDIACONVERT_ROLE: !GetAtt MediaConvertRole.Arn
+                    ENV_SERVICE_TOPIC_ROLE_ARN: !GetAtt ServiceTopicRole.Arn
+                    ENV_SERVICE_TOPIC_ARN: !Ref ServiceTopic
+                    ENV_SERVICE_TOKEN_TABLE: !Ref ServiceTokenTable
+                    ENV_SERVICE_TOKEN_TABLE_PARTITION_KEY: !FindInMap
+                        - DynamoDB
+                        - ServiceToken
+                        - PartitionKey
+                    ENV_SERVICE_TOKEN_TABLE_SORT_KEY: !FindInMap
+                        - DynamoDB
+                        - ServiceToken
+                        - SortKey
+            Tags:
+                -
+                    Key: SolutionId
+                    Value: !Ref SolutionId
+
+    ShotDetectionLambdaLarge:
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W89
+                        reason: Not using VPC
+                    -
+                        id: W92
+                        reason: Not using ReservedConcurrentExecutions feature
+        Type: AWS::Lambda::Function
+        Properties:
+            FunctionName: !Sub
+                - "${ResourcePrefix}-${name}-large"
+                - name: !FindInMap
+                    - Workflow
+                    - ShotDetection
+                    - Name
+            Description: !Sub "(${SolutionLowerCaseId}) segment detection state lambda used for MediaInfo state"
+            Runtime: !FindInMap
+                - Node
+                - Runtime
+                - Version
+            MemorySize: 1024
+            Timeout: 900
+            Handler: index.handler
+            Role: !GetAtt ShotDetectionLambdaRole.Arn
+            Code:
+                S3Bucket: !Ref S3Bucket
+                S3Key: !Sub
+                    - "${KeyPrefix}/${name}"
+                    - name: !FindInMap
+                        - Solution
+                        - Package
+                        - ShotDetection
+            Layers:
+                - !Ref AwsSdkLayer
+                - !Ref CoreLibLayer
+                - !Ref MediainfoLayer
+            Environment:
+                Variables:
+                    ENV_SOLUTION_UUID: !Ref StackId
+                    ENV_MEDIACONVERT_HOST: !GetAtt DescribeMediaConvert.Endpoint
+                    ENV_MEDIACONVERT_ROLE: !GetAtt MediaConvertRole.Arn
+                    ENV_SERVICE_TOPIC_ROLE_ARN: !GetAtt ServiceTopicRole.Arn
+                    ENV_SERVICE_TOPIC_ARN: !Ref ServiceTopic
+                    ENV_SERVICE_TOKEN_TABLE: !Ref ServiceTokenTable
+                    ENV_SERVICE_TOKEN_TABLE_PARTITION_KEY: !FindInMap
+                        - DynamoDB
+                        - ServiceToken
+                        - PartitionKey
+                    ENV_SERVICE_TOKEN_TABLE_SORT_KEY: !FindInMap
+                        - DynamoDB
+                        - ServiceToken
+                        - SortKey
+            Tags:
+                -
+                    Key: SolutionId
+                    Value: !Ref SolutionId
+
+    ShotDetectionStateMachine:
+        Type: AWS::StepFunctions::StateMachine
+        Properties:
+            StateMachineName: !Sub "${ResourcePrefix}-shot-detection"
+            RoleArn: !GetAtt StateMachineRole.Arn
+            DefinitionString:
+                !Sub
+                    - |-
+                        {
+                            "StartAt": "Run mediainfo",
+                            "States": {
+                                "Run mediainfo": {
+                                    "Type": "Task",
+                                    "Resource": "${x1}",
+                                    "Parameters": {
+                                        "state": "run-mediainfo",
+                                        "input.$": "$.input"
+                                    },
+                                    "Retry": [
+                                        {
+                                            "ErrorEquals": [
+                                                "States.ALL"
+                                            ],
+                                            "IntervalSeconds": 1,
+                                            "MaxAttempts": 2,
+                                            "BackoffRate": 1.2
+                                        }
+                                    ],
+                                    "Next": "Start mediaconvert and wait"
+                                },
+                                "Start mediaconvert and wait": {
+                                    "Type": "Task",
+                                    "Resource":"arn:aws:states:::lambda:invoke.waitForTaskToken",
+                                    "Parameters": {
+                                        "FunctionName": "${a0}",
+                                        "Payload": {
+                                            "token.$":"$$.Task.Token",
+                                            "state": "start-mediaconvert",
+                                            "input.$": "$.input",
+                                            "output.$": "$.output"
+                                        }
+                                    },
+                                    "TimeoutSeconds": 10800,
+                                    "Retry": [
+                                        {
+                                            "ErrorEquals": [
+                                                "States.ALL"
+                                            ],
+                                            "IntervalSeconds": 1,
+                                            "MaxAttempts": 4,
+                                            "BackoffRate": 1.2
+                                        }
+                                    ],
+                                    "Next": "Start segment detection and wait"
+                                },
+                                "Start segment detection and wait": {
+                                    "Type": "Task",
+                                    "Resource":"arn:aws:states:::lambda:invoke.waitForTaskToken",
+                                    "Parameters": {
+                                        "FunctionName": "${a0}",
+                                        "Payload": {
+                                            "token.$":"$$.Task.Token",
+                                            "state": "start-segment-detection",
+                                            "input.$": "$.input",
+                                            "output.$": "$.output"
+                                        }
+                                    },
+                                    "TimeoutSeconds": 10800,
+                                    "Retry": [
+                                        {
+                                            "ErrorEquals": [
+                                                "States.ALL"
+                                            ],
+                                            "IntervalSeconds": 1,
+                                            "MaxAttempts": 4,
+                                            "BackoffRate": 1.2
+                                        }
+                                    ],
+                                    "Next": "Collect detection results"
+                                },
+                                "Collect detection results": {
+                                    "Type": "Task",
+                                    "Resource": "${x0}",
+                                    "Parameters": {
+                                        "state": "collect-detection-results",
+                                        "input.$": "$.input",
+                                        "output.$": "$.output"
+                                    },
+                                    "Retry": [
+                                        {
+                                            "ErrorEquals": [
+                                                "States.ALL"
+                                            ],
+                                            "IntervalSeconds": 1,
+                                            "MaxAttempts": 6,
+                                            "BackoffRate": 1.1
+                                        }
+                                    ],
+                                    "Next": "Create timeline"
+                                },
+                                "Create timeline": {
+                                    "Type": "Task",
+                                    "Resource": "${x0}",
+                                    "Parameters": {
+                                        "state": "create-timeline",
+                                        "input.$": "$.input",
+                                        "output.$": "$.output"
+                                    },
+                                    "Retry": [
+                                        {
+                                            "ErrorEquals": [
+                                                "States.ALL"
+                                            ],
+                                            "IntervalSeconds": 1,
+                                            "MaxAttempts": 6,
+                                            "BackoffRate": 1.1
+                                        }
+                                    ],
+                                    "End": true
+                                }
+                            }
+                        }
+                    -
+                        {
+                            a0: !Ref ShotDetectionLambda,
+                            x0: !GetAtt ShotDetectionLambda.Arn,
+                            x1: !GetAtt ShotDetectionLambdaLarge.Arn
+                        }
+
+    ################################################################################
+    #
+    # Amazon CloudWatch Event, used to support AWS Step Functions Service Integration
+    # * State machine role
+    # * State machine Lambda role
+    # * State machine definition
+    #
+    ################################################################################
+    StatusUpdaterLogGroup:
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W84
+                        reason: Log group data is always encrypted in CloudWatch Logs. Disable additional KMS encryption requirement. https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html
+        Type: AWS::Logs::LogGroup
+        Properties:
+            LogGroupName: !Sub
+                - "/aws/lambda/${ResourcePrefix}-${name}"
+                - name: !FindInMap
+                    - Workflow
+                    - StatusUpdater
+                    - Name
+            RetentionInDays: 7
+
+    StatusUpdaterRole:
+        Type: AWS::IAM::Role
+        Properties:
+            AssumeRolePolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                    -
+                        Effect: Allow
+                        Action: sts:AssumeRole
+                        Principal:
+                            Service: lambda.amazonaws.com
+            Path: !Sub "/${ResourcePrefix}/"
+            Policies:
+                -
+                    PolicyName: !Sub
+                        - "${ResourcePrefix}-${name}-policy"
+                        - name: !FindInMap
+                            - Workflow
+                            - StatusUpdater
+                            - Name
+                    PolicyDocument:
+                        Version: "2012-10-17"
+                        Statement:
+                            ## CloudWatch Logs
+                            -
+                                Effect: Allow
+                                Action:
+                                    - logs:CreateLogGroup
+                                    - logs:CreateLogStream
+                                    - logs:PutLogEvents
+                                Resource: !GetAtt StatusUpdaterLogGroup.Arn
+                            ## Step Functions
+                            -
+                                Effect: Allow
+                                Action:
+                                    - states:SendTaskSuccess
+                                    - states:SendTaskFailure
+                                Resource: !Ref ShotDetectionStateMachine
+                            ## DynamoDB - allow to fetch step functions state token
+                            -
+                                Effect: Allow
+                                Action:
+                                    - dynamodb:DeleteItem
+                                    - dynamodb:DescribeTable
+                                    - dynamodb:Query
+                                    - dynamodb:UpdateItem
+                                Resource: !GetAtt ServiceTokenTable.Arn
+
+    StatusUpdaterLambda:
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W89
+                        reason: Not using VPC
+                    -
+                        id: W92
+                        reason: Not using ReservedConcurrentExecutions feature
+        Type: AWS::Lambda::Function
+        Properties:
+            FunctionName: !Sub
+                - "${ResourcePrefix}-${name}"
+                - name: !FindInMap
+                    - Workflow
+                    - StatusUpdater
+                    - Name
+            Description: !Sub "(${SolutionLowerCaseId}) status updater event lambda"
+            Runtime: !FindInMap
+                - Node
+                - Runtime
+                - Version
+            MemorySize: 128
+            Timeout: 900
+            Handler: index.handler
+            Role: !GetAtt StatusUpdaterRole.Arn
+            Code:
+                S3Bucket: !Ref S3Bucket
+                S3Key: !Sub
+                    - "${KeyPrefix}/${name}"
+                    - name: !FindInMap
+                        - Solution
+                        - Package
+                        - StatusUpdater
+            Layers:
+                - !Ref AwsSdkLayer
+                - !Ref CoreLibLayer
+            Environment:
+                Variables:
+                    ENV_SOLUTION_UUID: !Ref StackId
+                    ENV_MEDIACONVERT_HOST: !GetAtt DescribeMediaConvert.Endpoint
+                    ENV_MEDIACONVERT_ROLE: !GetAtt MediaConvertRole.Arn
+                    ENV_SERVICE_TOPIC_ROLE_ARN: !GetAtt ServiceTopicRole.Arn
+                    ENV_SERVICE_TOPIC_ARN: !Ref ServiceTopic
+                    ENV_SERVICE_TOKEN_TABLE: !Ref ServiceTokenTable
+                    ENV_SERVICE_TOKEN_TABLE_PARTITION_KEY: !FindInMap
+                        - DynamoDB
+                        - ServiceToken
+                        - PartitionKey
+                    ENV_SERVICE_TOKEN_TABLE_SORT_KEY: !FindInMap
+                        - DynamoDB
+                        - ServiceToken
+                        - SortKey
+            Tags:
+                -
+                    Key: SolutionId
+                    Value: !Ref SolutionId
+
+    TranscodeStatusChangeRule:
+        Type: AWS::Events::Rule
+        Properties:
+            Name: !Sub "${ResourcePrefix}-transcode-status-rule"
+            Description: !Sub "(${SolutionId}) MediaConvert Job Status Change event"
+            EventPattern:
+                source:
+                    - aws.mediaconvert
+                region:
+                    - !Ref AWS::Region
+                detail-type:
+                    - MediaConvert Job State Change
+                detail:
+                    status:
+                        - COMPLETE
+                        - CANCELED
+                        - ERROR
+                    userMetadata:
+                        solutionUuid:
+                            - !Ref StackId
+            State: ENABLED
+            Targets:
+                -
+                    Id: !Sub "Id-${StatusUpdaterLambda}"
+                    Arn: !GetAtt StatusUpdaterLambda.Arn
+
+    TranscodeStatusChangePermission:
+        Type: AWS::Lambda::Permission
+        Properties:
+            FunctionName: !Ref StatusUpdaterLambda
+            Action: lambda:InvokeFunction
+            Principal: events.amazonaws.com
+            SourceArn: !GetAtt TranscodeStatusChangeRule.Arn
+
+    ServiceTopicSubscription:
+        Type: AWS::SNS::Subscription
+        Properties:
+            Protocol: lambda
+            TopicArn: !Ref ServiceTopic
+            Endpoint: !GetAtt StatusUpdaterLambda.Arn
+
+    ServiceTopicPermission:
+        Type: AWS::Lambda::Permission
+        Properties:
+            FunctionName: !Ref StatusUpdaterLambda
+            Action: lambda:InvokeFunction
+            Principal: sns.amazonaws.com
+            SourceArn: !Ref ServiceTopic
+
+    ################################################################################
+    #
+    # API Gateway resources
+    # * IAM roles, Lambda, API Access Logs, RESTful API endpoint, and API Deployment
+    #
+    ################################################################################
+    ApiCloudWatchLogRole:
+        Type: AWS::IAM::Role
+        Properties:
+            AssumeRolePolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                    -
+                        Effect: Allow
+                        Principal:
+                            Service: apigateway.amazonaws.com
+                        Action: sts:AssumeRole
+            Path: !Sub "/${ResourcePrefix}/"
+            ManagedPolicyArns:
+                - "arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs"
+
+    ConfigureApiCloudWatchLogRole:
+        Type: Custom::ConfigureApiCloudWatchLogRole
+        Properties:
+            ServiceToken: !GetAtt CustomResourceLambda.Arn
+            Data:
+                LogRoleArn: !GetAtt ApiCloudWatchLogRole.Arn
+
+    ApiAccount:
+        Type: AWS::ApiGateway::Account
+        Properties:
+            CloudWatchRoleArn: !GetAtt ConfigureApiCloudWatchLogRole.RoleArn
+
+    ApiLogGroup:
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W84
+                        reason: Log group data is always encrypted in CloudWatch Logs. Disable additional KMS encryption requirement. https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html
+        Type: AWS::Logs::LogGroup
+        Properties:
+            LogGroupName: !Sub
+                - "/aws/lambda/${ResourcePrefix}-${name}"
+                - name: !FindInMap
+                    - Workflow
+                    - Api
+                    - Name
+            RetentionInDays: 7
+
+    ApiRole:
+        Type: AWS::IAM::Role
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W11
+                        reason: This wildcard is present as the custom resource lambda needs to be able to access contents within the bucket!
+        Properties:
+            AssumeRolePolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                    -
+                        Effect: Allow
+                        Action: sts:AssumeRole
+                        Principal:
+                            Service: lambda.amazonaws.com
+            Path: !Sub "/${ResourcePrefix}/"
+            Policies:
+                -
+                    PolicyName: !Sub "${ResourcePrefix}-shot-detection-api"
+                    PolicyDocument:
+                        Version: "2012-10-17"
+                        Statement:
+                            ## CloudWatch Logs
+                            -
+                                Effect: Allow
+                                Action:
+                                    - logs:CreateLogGroup
+                                    - logs:CreateLogStream
+                                    - logs:PutLogEvents
+                                Resource: !GetAtt ApiLogGroup.Arn
+                            ## S3
+                            -
+                                Effect: Allow
+                                Action: s3:ListBucket
+                                Resource: !Sub "arn:aws:s3:::${SourceBucket}"
+                            -
+                                Effect: Allow
+                                Action:
+                                    - s3:GetObject
+                                    - s3:GetObjectAcl
+                                    - s3:GetObjectVersion
+                                    - s3:GetObjectTagging
+                                    - s3:PutObject
+                                Resource: !Sub "arn:aws:s3:::${SourceBucket}/*"
+                            ## Step Functions - start/stop/describe state machine & executions
+                            -
+                                Effect: Allow
+                                Action:
+                                    - states:DescribeStateMachine
+                                    - states:StartExecution
+                                    - states:ListExecutions
+                                Resource: !Sub "arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${ResourcePrefix}-shot-detection"
+                            -
+                                Effect: Allow
+                                Action:
+                                    - states:DescribeExecution
+                                    - states:StopExecution
+                                    - states:GetExecutionHistory
+                                Resource: !Sub "arn:aws:states:${AWS::Region}:${AWS::AccountId}:execution:${ResourcePrefix}-shot-detection:*"
+
+    ApiLambda:
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W89
+                        reason: Not using VPC
+                    -
+                        id: W92
+                        reason: Not using ReservedConcurrentExecutions feature
+        Type: AWS::Lambda::Function
+        Properties:
+            FunctionName: !Sub
+                - "${ResourcePrefix}-${name}"
+                - name: !FindInMap
+                    - Workflow
+                    - Api
+                    - Name
+            Description: !Sub "(${SolutionLowerCaseId}) API Gateway endpoint lambda"
+            Runtime: !FindInMap
+                - Node
+                - Runtime
+                - Version
+            MemorySize: 256
+            Timeout: 900
+            Handler: index.handler
+            Role: !GetAtt ApiRole.Arn
+            Code:
+                S3Bucket: !Ref S3Bucket
+                S3Key: !Sub
+                    - "${KeyPrefix}/${name}"
+                    - name: !FindInMap
+                        - Solution
+                        - Package
+                        - Api
+            Layers:
+                - !Ref AwsSdkLayer
+                - !Ref CoreLibLayer
+            Tags:
+                -
+                    Key: SolutionId
+                    Value: !Ref SolutionId
+
+    RestApi:
+        Type: AWS::ApiGateway::RestApi
+        Properties:
+            Description: !Sub "(${SolutionLowerCaseId}) RESTful API endpoints to start, stop, describe Step Functions state machine"
+            Body:
+                swagger: "2.0"
+                info:
+                    version: "2018-08-03T20:13:00Z"
+                    title: !Sub
+                        - "${ResourcePrefix}-${name}"
+                        - name: !FindInMap
+                            - Workflow
+                            - Api
+                            - Name
+                basePath: !Sub
+                    - "/${stage}"
+                    - stage: !FindInMap
+                        - Solution
+                        - APIGateway
+                        - StageName
+                schemes:
+                    - "https"
+                paths:
+                    /{operation}:
+                        options:
+                            produces:
+                                - "application/json"
+                            parameters:
+                                -
+                                    name: "operation"
+                                    in: "path"
+                                    required: true
+                                    type: "string"
+                            response:
+                                "200":
+                                    description: "200 response"
+                                    schema:
+                                        $ref: "#/definitions/Empty"
+                                    headers:
+                                        Access-Control-Allow-Origin:
+                                            type: "string"
+                                        Access-Control-Allow-Methods:
+                                            type: "string"
+                                        Access-Control-Allow-Headers:
+                                            type: "string"
+                            x-amazon-apigateway-integration:
+                                uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiLambda.Arn}/invocations"
+                                responses:
+                                    default:
+                                        statusCode: "200"
+                                passthroughBehavior: "when_no_match"
+                                httpMethod: "POST"
+                                contentHandling: "CONVERT_TO_TEXT"
+                                type: "aws_proxy"
+                        get:
+                            produces:
+                                - "application/json"
+                            parameters:
+                                -
+                                    name: "operation"
+                                    in: "path"
+                                    required: true
+                                    type: "string"
+                            response:
+                                "200":
+                                    description: "200 response"
+                                    schema:
+                                        $ref: "#/definitions/Empty"
+                            security:
+                                - sigv4: []
+                            x-amazon-apigateway-integration:
+                                uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiLambda.Arn}/invocations"
+                                responses:
+                                    default:
+                                        statusCode: "200"
+                                passthroughBehavior: "when_no_match"
+                                httpMethod: "POST"
+                                contentHandling: "CONVERT_TO_TEXT"
+                                type: "aws_proxy"
+                        post:
+                            produces:
+                                - "application/json"
+                            parameters:
+                                -
+                                    name: "operation"
+                                    in: "path"
+                                    required: true
+                                    type: "string"
+                            response:
+                                "200":
+                                    description: "200 response"
+                                    schema:
+                                        $ref: "#/definitions/Empty"
+                            security:
+                                - sigv4: []
+                            x-amazon-apigateway-integration:
+                                uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiLambda.Arn}/invocations"
+                                responses:
+                                    default:
+                                        statusCode: "200"
+                                passthroughBehavior: "when_no_match"
+                                httpMethod: "POST"
+                                contentHandling: "CONVERT_TO_TEXT"
+                                type: "aws_proxy"
+                securityDefinitions:
+                    sigv4:
+                        type: "apiKey"
+                        name: "Authorization"
+                        in: "header"
+                        x-amazon-apigateway-authtype: "awsSigv4"
+                definitions:
+                    Empty:
+                        type: "object"
+                        title: "Empty Schema"
+
+    Deployment:
+        Type: AWS::ApiGateway::Deployment
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W68
+                        reason: Supress UsagePlan requirement
+        Properties:
+            Description: !Sub "(${SolutionLowerCaseId}) APIGateway deployment"
+            RestApiId: !Ref RestApi
+            StageName: !FindInMap
+                - Solution
+                - APIGateway
+                - StageName
+            StageDescription:
+                Description: !Sub "(${SolutionLowerCaseId}) APIGateway Stage"
+                LoggingLevel: ERROR
+                AccessLogSetting:
+                    DestinationArn: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/apigateway/access-logs/${SolutionLowerCaseId}/${RestApi}"
+                    Format: "$context.identity.sourceIp $context.identity.caller $context.identity.user [$context.requestTime] \"$context.httpMethod $context.resourcePath $context.protocol\" $context.status $context.responseLength $context.requestId"
+                MethodSettings:
+                    -
+                        ResourcePath: /~1{operation}
+                        HttpMethod: GET
+                        DataTraceEnabled: false
+                        LoggingLevel: ERROR
+                    -
+                        ResourcePath: /~1{operation}
+                        HttpMethod: POST
+                        DataTraceEnabled: false
+                        LoggingLevel: ERROR
+
+    OPTIONSOperation:
+        Type: AWS::Lambda::Permission
+        Properties:
+            Action: lambda:InvokeFunction
+            FunctionName: !GetAtt ApiLambda.Arn
+            Principal: apigateway.amazonaws.com
+            SourceArn: !Sub
+                - "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApi}/${stage}/OPTIONS/*"
+                - stage: !FindInMap
+                    - Solution
+                    - APIGateway
+                    - StageName
+
+    GETOperation:
+        Type: AWS::Lambda::Permission
+        Properties:
+            Action: lambda:InvokeFunction
+            FunctionName: !GetAtt ApiLambda.Arn
+            Principal: apigateway.amazonaws.com
+            SourceArn: !Sub
+                - "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApi}/${stage}/GET/*"
+                - stage: !FindInMap
+                    - Solution
+                    - APIGateway
+                    - StageName
+
+    POSTOperation:
+        Type: AWS::Lambda::Permission
+        Properties:
+            Action: lambda:InvokeFunction
+            FunctionName: !GetAtt ApiLambda.Arn
+            Principal: apigateway.amazonaws.com
+            SourceArn: !Sub
+                - "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApi}/${stage}/POST/*"
+                - stage: !FindInMap
+                    - Solution
+                    - APIGateway
+                    - StageName
+
+    ################################################################################
+    #
+    # Webapp resources
+    # * S3 Bucket to host web application, Amazon CloudFront distribution with OAID
+    # * Custom Resource to copy web contents
+    #
+    ################################################################################
+    WebBucket:
+        Type: AWS::S3::Bucket
+        DeletionPolicy: Retain
+        UpdateReplacePolicy: Retain
+        Properties:
+            BucketName: !Sub "${ResourcePrefix}-${AWS::AccountId}-${AWS::Region}-web"
+            BucketEncryption:
+                ServerSideEncryptionConfiguration:
+                    -
+                      ServerSideEncryptionByDefault:
+                          SSEAlgorithm: AES256
+            AccessControl: LogDeliveryWrite
+            LoggingConfiguration:
+                DestinationBucketName: !Ref LogsBucket
+                LogFilePrefix: "access_logs_web_bucket/"
+            WebsiteConfiguration:
+                IndexDocument: index.html
+                ErrorDocument: 404.html
+            CorsConfiguration:
+                CorsRules:
+                    -
+                        AllowedMethods:
+                            - GET
+                            - PUT
+                            - POST
+                            - HEAD
+                        AllowedOrigins:
+                            - "*"
+                        AllowedHeaders:
+                            - "*"
+                        ExposedHeaders:
+                            - ETag
+                            - Content-Length
+                        MaxAge: 3000
+            LifecycleConfiguration:
+                Rules:
+                    -
+                        Id: "Use Intelligent tier"
+                        Status: Enabled
+                        Transitions:
+                            -
+                                StorageClass: INTELLIGENT_TIERING
+                                TransitionInDays: 0
+                        AbortIncompleteMultipartUpload:
+                            DaysAfterInitiation: 7
+                    -
+                        Id: "Keep previous version for 7 days"
+                        Status: Enabled
+                        NoncurrentVersionExpirationInDays: 7
+                        AbortIncompleteMultipartUpload:
+                            DaysAfterInitiation: 1
+            Tags:
+                -
+                    Key: SolutionId
+                    Value: !Ref SolutionId
+            VersioningConfiguration:
+                Status: Enabled
+
+    OriginAccessIdentity:
+        Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+        Properties:
+            CloudFrontOriginAccessIdentityConfig:
+                Comment: !Sub "access-identity-${WebBucket}"
+
+    WebBucketPolicy:
+        Type: AWS::S3::BucketPolicy
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: F16
+                        reason: website bucket policy requires a wildcard principal
+        Properties:
+            Bucket: !Ref WebBucket
+            PolicyDocument:
+                Statement:
+                    -
+                        Effect: Deny
+                        Principal: "*"
+                        Action: "*"
+                        Resource: !Sub "arn:aws:s3:::${WebBucket}/*"
+                        Condition:
+                            Bool:
+                                "aws:SecureTransport": false
+                    -
+                        Effect: Allow
+                        Action: s3:GetObject
+                        Resource: !Sub "arn:aws:s3:::${WebBucket}/*"
+                        Principal:
+                            CanonicalUser: !GetAtt OriginAccessIdentity.S3CanonicalUserId
+
+    # (Custom Resource) copy web content to web bucket
+    # Returns:
+    #   * Uploaded
+    #   * LastUpdated
+    #   * Status
+    CopyWebContent:
+        Type: Custom::CopyWebContent
+        Properties:
+            ServiceToken: !GetAtt CustomResourceLambda.Arn
+            Data:
+                SolutionId: !Ref SolutionLowerCaseId
+                Source:
+                    Bucket: !Ref S3Bucket
+                    Key: !Sub
+                        - "${KeyPrefix}/${name}"
+                        - name: !FindInMap
+                            - Solution
+                            - Package
+                            - WebApp
+                Destination:
+                    Bucket: !Ref WebBucket
+
+    CloudFrontDistribution:
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W10
+                        reason: Disable access logging
+                    -
+                        id: W70
+                        reason: Disable minimum protocol version TLS 1.2
+        Type: AWS::CloudFront::Distribution
+        Properties:
+            DistributionConfig:
+                Comment: "Webapp distribution for segment detection demo"
+                Origins:
+                    -
+                        Id: !Sub "S3-${WebBucket}"
+                        DomainName: !If
+                            - bUSEast1
+                            - !Sub "${WebBucket}.s3.amazonaws.com"
+                            - !Sub "${WebBucket}.s3.${AWS::Region}.amazonaws.com"
+                        S3OriginConfig:
+                            OriginAccessIdentity: !Sub "origin-access-identity/cloudfront/${OriginAccessIdentity}"
+                DefaultCacheBehavior:
+                    TargetOriginId: !Sub "S3-${WebBucket}"
+                    AllowedMethods:
+                        - OPTIONS
+                        - HEAD
+                        - GET
+                    CachedMethods:
+                        - OPTIONS
+                        - HEAD
+                        - GET
+                    ForwardedValues:
+                        QueryString: false
+                    ViewerProtocolPolicy: redirect-to-https
+                DefaultRootObject: index.html
+                CustomErrorResponses:
+                    -
+                        ErrorCode: 403
+                        ResponsePagePath: /404.html
+                        ResponseCode: 200
+                    -
+                        ErrorCode: 404
+                        ResponsePagePath: /404.html
+                        ResponseCode: 200
+                IPV6Enabled: true
+                ViewerCertificate:
+                    CloudFrontDefaultCertificate: true
+                Enabled: true
+                HttpVersion: http2
+                PriceClass: !Ref PriceClass
+                Logging:
+                    Bucket: !Sub "${LogsBucket}.s3.amazonaws.com"
+                    Prefix: access_logs_cloudfront/
+                    IncludeCookies: true
+            Tags:
+                -
+                    Key: SolutionId
+                    Value: !Ref SolutionId
+
+    # (Custom Resource) to copy webapp to web bucket
+    # Returns:
+    #   * Status
+    PostUpdateWebBucketCORS:
+        Type: Custom::PostUpdateBucketCORS
+        Properties:
+            ServiceToken: !GetAtt CustomResourceLambda.Arn
+            Data:
+                Bucket: !Ref WebBucket
+                AllowedOrigins:
+                    - !Sub "https://${CloudFrontDistribution.DomainName}"
+                AllowedMethods:
+                    - HEAD
+                    - GET
+                    - PUT
+                    - POST
+                AllowedHeaders:
+                    - "*"
+                ExposeHeaders:
+                    - Content-Length
+                    - ETag
+                MaxAgeSeconds: 3000
+
+    # (Custom Resource) update source bucket CORS
+    # Returns:
+    #   * Status
+    PostUpdateSourceBucketCORS:
+        Type: Custom::PostUpdateBucketCORS
+        Properties:
+            ServiceToken: !GetAtt CustomResourceLambda.Arn
+            Data:
+                Bucket: !Ref SourceBucket
+                AllowedOrigins:
+                    - !Sub "https://${CloudFrontDistribution.DomainName}"
+                AllowedMethods:
+                    - HEAD
+                    - GET
+                    - PUT
+                    - POST
+                AllowedHeaders:
+                    - "*"
+                ExposeHeaders:
+                    - Content-Length
+                    - ETag
+                MaxAgeSeconds: 3000
+
+    # (Custom Resource) create solution manifest for webapp
+    # Returns:
+    #   * Status
+    PostCreateSolutionManifest:
+        Type: Custom::PostCreateSolutionManifest
+        Properties:
+            ServiceToken: !GetAtt CustomResourceLambda.Arn
+            Web:
+                Bucket: !Ref WebBucket
+            Data:
+                SolutionId: !Ref SolutionId
+                Version: !Ref ProjectVersion
+                StackName: !Ref AWS::StackName
+                Region: !Ref AWS::Region
+                LastUpdated: !GetAtt CopyWebContent.LastUpdated
+                S3:
+                    Bucket: !Ref SourceBucket
+                    UseAccelerateEndpoint: true
+                ApiEndpoint: !Sub
+                    - "https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/${stage}"
+                    - stage: !FindInMap
+                        - Solution
+                        - APIGateway
+                        - StageName
+                Cognito:
+                    UserPoolId: !Ref CognitoUserPool
+                    ClientId: !Ref CognitoAppClient
+                    IdentityPoolId: !Ref CognitoIdentityPool
+                    RedirectUri: !Sub "https://${CloudFrontDistribution.DomainName}"
+                StateMachine:
+                    Name: !GetAtt ShotDetectionStateMachine.Name
+
+    ################################################################################
+    #
+    # Cognito resources
+    # * Authenticated User IAM role, UserPool, IdentityPool, AppClient, register user
+    #
+    ################################################################################
+    CognitoUserPool:
+        Type: AWS::Cognito::UserPool
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: F78
+                        reason: Suppress MfaConfiguration error
+        Properties:
+            AdminCreateUserConfig:
+                AllowAdminCreateUserOnly: true
+                InviteMessageTemplate:
+                  EmailSubject: You are invited to Amazon Rekognition Segment Detection Demo portal (GitHub sample code project)
+                  EmailMessage:
+                    !Sub
+                        - |-
+                            <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schema=s-microsoft-com:office:word" xmlns:m="http://schemas.microsoft.com/office/2004/12/omml" xmlns="http://www.w3.org/TR/REC-html40">
+                            <head>
+                            <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+                            <meta name="Generator" content="Microsoft Word 15 (filtered medium)">
+                            <style>
+                                @font-face {
+                                font-family: "Cambria Math"; panose-1: 2 4 5 3 5 4 6 3 2 4;
+                                }
+                                @font-face {
+                                font-family: DengXian; panose-1: 2 1 6 0 3 1 1 1 1 1;
+                                }
+                                @font-face {
+                                font-family: Calibri; panose-1: 2 15 5 2 2 2 4 3 2 4;
+                                }
+                                @font-face {
+                                font-family: "@DengXian"; panose-1: 2 1 6 0 3 1 1 1 1 1;
+                                }
+                                @font-face {
+                                font-family: "Amazon Ember"; panose-1: 2 11 6 3 2 2 4 2 2 4;
+                                }
+
+                                p.MsoNormal, li.MsoNormal, div.MsoNormal {
+                                margin: 0in;
+                                margin-bottom: .0001pt;
+                                font-size: 12.0pt;
+                                font-family: "Calibri", sans-serif;
+                                }
+
+                                h2 {
+                                mso-style-priority: 9;
+                                mso-style-link: "Heading 2 Char";
+                                mso-margin-top-alt: auto;
+                                margin-right: 0in;
+                                mso-margin-bottom-alt: auto;
+                                margin-left: 0in;
+                                font-size: 18.0pt;
+                                font-family: "Calibri", sans-serif;
+                                font-weight: bold;
+                                }
+
+                                a, span.MsoHyperlink {
+                                mso-style-priority: 99;
+                                color: #0563C1;
+                                }
+
+                                span.EmailStyle17 {
+                                mso-style-type: personal-compose;
+                                font-family: "Calibri", sans-serif;
+                                color: windowtext;
+                                }
+
+                                span.Heading2Char {
+                                mso-style-name: "Heading 2 Char";
+                                mso-style-priority: 9;
+                                mso-style-link: "Heading 2";
+                                font-family: "Calibri", sans-serif;
+                                font-weight: bold;
+                                }
+
+                                .MsoChpDefault {
+                                mso-style-type: export-only;
+                                font-family: "Calibri", sans-serif;
+                                }
+
+                                @page WordSection1 {
+                                size: 8.5in 11.0in;
+                                margin: 1.0in 1.0in 1.0in 1.0in;
+                                }
+
+                                div.WordSection1 {
+                                page: WordSection1;
+                                }
+
+                                .MainContent {
+                                font-variant-ligatures: normal;
+                                font-variant-caps: normal;
+                                orphans:2;
+                                text-align:start;
+                                widows:2;
+                                -webkit-text-stroke-width: 0px;
+                                text-decoration-style:initial;
+                                text-decoration-color:initial;
+                                word-spacing:0px;
+                                font-size:13.5pt;
+                                }
+
+                                .SubContent {
+                                font-family:'Amazon Ember',sans-serif;
+                                color:#333333"
+                                }
+                            </style>
+                            </head>
+
+                            <body lang="EN-US" link="#0563C1" vlink="#954F72">
+                            <div class="WordSection1">
+                                <h2>
+                                <span class="SubContent">
+                                    Welcome to Amazon Rekognition Segment Detection Demo portal (GitHub sample code project)<o:p></o:p>
+                                </span>
+                                </h2>
+
+                                <p class="MainContent" style="padding-bottom:30px;">
+                                <span class="SubContent">
+                                    Use the provided user name and temporary password to log in for the first time.<o:p></o:p>
+                                </span>
+                                </p>
+
+                                <p class="MainContent">
+                                <span class="SubContent">
+                                    User name: <b>{username}</b><o:p></o:p>
+                                </span>
+                                </p>
+
+                                <p class="MainContent">
+                                <span class="SubContent">
+                                    Temporary password: <b>{####}</b><o:p></o:p>
+                                </span>
+                                <br/>
+                                <span class="SubContent" style="font-size:10pt;">
+                                    (After you log in with your temporary password, you will be prompted to create a new one.)<o:p></o:p>
+                                </span>
+                                </p>
+
+                                <p class="MainContent" style="padding-bottom:30px;">
+                                <span class="SubContent">
+                                    Open the link to log in:<o:p></o:p>
+                                    <br/>
+                                    <span style="color:#007DBC">
+                                        <a href="${url}" target="_blank">${url}</a><o:p></o:p>
+                                    </span>
+                                </span>
+                                </p>
+
+                                <p class="MainContent" style="padding-top: 30pt;">
+                                <span class="SubContent" style="font-size:12pt;">
+                                    <i>Team AWS Specialist AI/ML</i><o:p></o:p>
+                                </span>
+                                </p>
+
+                                <p class="MsoNormal">
+                                <span style="font-size:11.0pt">
+                                    <o:p>&nbsp;</o:p>
+                                </span>
+                                </p>
+                            </div>
+                            </body>
+                            </html>
+                        - {
+                            url: !Sub "https://${CloudFrontDistribution.DomainName}",
+                        }
+            AliasAttributes:
+                - email
+            AutoVerifiedAttributes:
+                - email
+            MfaConfiguration: "OFF"
+            Policies:
+                PasswordPolicy:
+                    MinimumLength: 8
+                    RequireLowercase: true
+                    RequireNumbers: true
+                    RequireSymbols: false
+                    RequireUppercase: true
+            UserPoolName: !Sub "${ResourcePrefix}-webapp-userpool"
+
+    CognitoAppClient:
+        Type: AWS::Cognito::UserPoolClient
+        Properties:
+            ClientName: !Sub "${ResourcePrefix}-webapp-appclient"
+            RefreshTokenValidity: 30
+            UserPoolId: !Ref CognitoUserPool
+
+    CognitoIdentityPool:
+        Type: AWS::Cognito::IdentityPool
+        Properties:
+            IdentityPoolName: !Sub
+                - "${solutionId}_${guid}_webapp_identitypool"
+                -
+                    solutionId: !Select
+                        - 0
+                        - !Split
+                            - "-"
+                            - !Ref ResourcePrefix
+                    guid: !Select
+                        - 1
+                        - !Split
+                            - "-"
+                            - !Ref ResourcePrefix
+            AllowUnauthenticatedIdentities: false
+            CognitoIdentityProviders:
+                -
+                  ClientId: !Ref CognitoAppClient
+                  ProviderName: !GetAtt CognitoUserPool.ProviderName
+                  ServerSideTokenCheck: false
+
+    AuthenticatedUserRole:
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W11
+                        reason: This wildcard is present as the authenticated cognito role needs to be able to access contents within the bucket!
+        Type: AWS::IAM::Role
+        Properties:
+            AssumeRolePolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                    -
+                        Effect: Allow
+                        Principal:
+                            Federated: cognito-identity.amazonaws.com
+                        Action: sts:AssumeRoleWithWebIdentity
+                        Condition:
+                            StringEquals:
+                                cognito-identity.amazonaws.com:aud: !Ref CognitoIdentityPool
+                            ForAnyValue:StringLike:
+                                cognito-identity.amazonaws.com:amr: "authenticated"
+            Path: !Sub "/${ResourcePrefix}/"
+            Policies:
+                -
+                    PolicyName: !Sub "${ResourcePrefix}-cognito-user-policy"
+                    PolicyDocument:
+                        Version: "2012-10-17"
+                        Statement:
+                            ## Cognito
+                            -
+                                Effect: Allow
+                                Action: cognito-identity:GetId
+                                Resource: !Sub "arn:aws:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoIdentityPool}"
+                            ## API Gateway
+                            -
+                                Effect: Allow
+                                Action: execute-api:Invoke
+                                Resource: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApi}/*/*/*"
+                            ## S3
+                            -
+                                Effect: Allow
+                                Action: s3:ListBucket
+                                Resource: !Sub "arn:aws:s3:::${SourceBucket}"
+                            -
+                                Effect: Allow
+                                Action:
+                                    - s3:GetObject
+                                    - s3:PutObject
+                                Resource: !Sub "arn:aws:s3:::${SourceBucket}/*"
+
+    CognitoIdentityPoolRoleAttachment:
+        Type: AWS::Cognito::IdentityPoolRoleAttachment
+        Properties:
+            IdentityPoolId: !Ref CognitoIdentityPool
+            Roles:
+                authenticated: !GetAtt AuthenticatedUserRole.Arn
+
+    # (Custom Resource) create coginto user, returns
+    #   * Username
+    #   * Status
+    CognitoRegisterUser:
+        DependsOn: PostCreateSolutionManifest
+        Type: Custom::CognitoRegisterUser
+        Properties:
+            ServiceToken: !GetAtt CustomResourceLambda.Arn
+            Data:
+                UserPoolId: !Ref CognitoUserPool
+                Email: !Ref Email
+
+Outputs:
+    # Layers
+    AwsSdkLayerArn:
+        Value: !Ref AwsSdkLayer
+        Description: Lambda Layer (AWS SDK Library)
+    CoreLibLayerArn:
+        Value: !Ref CoreLibLayer
+        Description: Lambda Layer (Core Library)
+    MediainfoLayerArn:
+        Value: !Ref MediainfoLayer
+        Description: Lambda Layer (Mediainfo)
+    # Custom Resource
+    CustomResourceRoleArn:
+        Value: !GetAtt CustomResourceRole.Arn
+        Description: IAM Role Arn (Custom Resource)
+    CustomResourceLambdaArn:
+        Value: !GetAtt CustomResourceLambda.Arn
+        Description: Lambda Arn (Custom Resource)
+    # Buckets
+    LogsBucket:
+        Value: !Ref LogsBucket
+        Description: Bucket (Logs)
+    SourceBucket:
+        Value: !Ref SourceBucket
+        Description: Bucket (Source)
+    WebBucket:
+        Value: !Ref WebBucket
+        Description: Bucket (Web)
+    # API Gateway
+    ApiLambdaArn:
+        Value: !GetAtt ApiLambda.Arn
+        Description: Lambda Arn (POST request)
+    ApiRoleArn:
+        Value: !GetAtt ApiRole.Arn
+        Description: IAM Role Arn (API Lambda)
+    RestApiId:
+        Value: !Ref RestApi
+        Description: API Id
+    RestApiEndpoint:
+        Value: !Sub
+            - "https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/${stage}"
+            - stage: !FindInMap
+                - Solution
+                - APIGateway
+                - StageName
+        Description: API Endpoint
+    # Cognito related
+    CognitoUserPoolId:
+        Value: !Ref CognitoUserPool
+        Description: User Pool ID (Cognito)
+    CognitoUserPoolArn:
+        Value: !GetAtt CognitoUserPool.Arn
+        Description: User Pool Arn (Cognito)
+    CognitoUserPoolProviderName:
+        Value: !GetAtt CognitoUserPool.ProviderName
+        Description: User Pool Provider Name (Cognito)
+    CognitoUserPoolProviderURL:
+        Value: !GetAtt CognitoUserPool.ProviderURL
+        Description: User Pool Provider Url (Cognito)
+    CognitoAppClientId:
+        Value: !Ref CognitoAppClient
+        Description: App Client ID (Cognito)
+    CognitoIdentityPoolId:
+        Value: !Ref CognitoIdentityPool
+        Description: Identity Pool (Cognito)
+    CognitoIdentityPoolName:
+        Value: !GetAtt CognitoIdentityPool.Name
+        Description: Identity Pool Name (Cognito)
+    CognitoRegisterUser:
+        Value: !GetAtt CognitoRegisterUser.Username
+        Description: Registered Username (Cognito)
+    AuthenticatedUserRoleArn:
+        Value: !GetAtt AuthenticatedUserRole.Arn
+        Description: IAM Role Arn (Cognito Authenticated User)
+    # WebApp related
+    CloudFrontDistributionId:
+        Value: !Ref CloudFrontDistribution
+        Description: Id (CloudFront Distribution)
+    DemoPortal:
+        Value: !Sub https://${CloudFrontDistribution.DomainName}
+        Description: Demo Portal (WebApp)

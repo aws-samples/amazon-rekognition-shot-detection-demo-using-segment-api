@@ -1,0 +1,151 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: Segment Detection Demo - demonstrates using Amazon Rekognition Segment V2 API to extract shots, opencredits, content, endcredits, blackframes, slate, studio logo in video. (uksb-1s3reu77b) (version:%VERSION%)
+
+Mappings:
+    Solution:
+        Project:
+            Id: ML9801
+            LowerCaseId: ml9801
+            Version: "%VERSION%"
+        Template:
+            S3Bucket: "%BUCKET%"
+            KeyPrefix: "%KEYPREFIX%"
+            SingleRegion: "%SINGLE_REGION%"
+    Stack:
+        ShotDetection:
+            Name: shot-detection-stack
+
+Parameters:
+    Email:
+        Type: String
+        Description: Email address of the user that will be created in the Amazon Cognito User Pool to access the demo portal.
+        AllowedPattern: '[^\s@]+@[^\s@]+\.[^\s@]+'
+    PriceClass:
+        Type: String
+        Description: Specify the price class of the edge location from which CloudFront serves your requests. For more information, see https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/PriceClass.html
+        AllowedValues:
+            - Use Only U.S., Canada and Europe [PriceClass_100]
+            - Use U.S., Canada, Europe, Asia and Africa [PriceClass_200]
+            - Use All Edge Locations (Best Performance) [PriceClass_All]
+        Default: Use Only U.S., Canada and Europe [PriceClass_100]
+
+Metadata:
+    AWS::CloudFormation::Interface:
+        ParameterGroups:
+            -
+                Label:
+                    default: Amazon Cognito Configuration
+                Parameters:
+                    - Email
+            -
+                Label:
+                    default: Amazon S3 / Amazon CloudFront Configuration
+                Parameters:
+                    - PriceClass
+        ParameterLabels:
+            PriceClass:
+                default: Price Class
+            Email:
+                default: Email
+
+Conditions:
+    bSingleRegion: !Equals
+        - !FindInMap
+            - Solution
+            - Template
+            - SingleRegion
+        - "true"
+
+Resources:
+    ################################################################################
+    #
+    # Segment Detection stack
+    #
+    ################################################################################
+    ShotDetectionStack:
+        Type: AWS::CloudFormation::Stack
+        Properties:
+            TemplateURL: !Sub
+                - "https://${x0}${x1}.s3.amazonaws.com/${x2}/${x3}.template"
+                -
+                    x0: !FindInMap
+                        - Solution
+                        - Template
+                        - S3Bucket
+                    x1: !If
+                        - bSingleRegion
+                        - ""
+                        - !Sub "-${AWS::Region}"
+                    x2: !FindInMap
+                        - Solution
+                        - Template
+                        - KeyPrefix
+                    x3: !FindInMap
+                        - Stack
+                        - ShotDetection
+                        - Name
+            Parameters:
+                S3Bucket: !Sub
+                    - "${x0}${x1}"
+                    -
+                        x0: !FindInMap
+                            - Solution
+                            - Template
+                            - S3Bucket
+                        x1: !If
+                            - bSingleRegion
+                            - ""
+                            - !Sub "-${AWS::Region}"
+                KeyPrefix: !FindInMap
+                    - Solution
+                    - Template
+                    - KeyPrefix
+                SolutionId: !FindInMap
+                    - Solution
+                    - Project
+                    - Id
+                SolutionLowerCaseId: !FindInMap
+                    - Solution
+                    - Project
+                    - LowerCaseId
+                ProjectVersion: !FindInMap
+                    - Solution
+                    - Project
+                    - Version
+                StackId: !Select
+                    - 2
+                    - !Split
+                        - "/"
+                        - !Ref AWS::StackId
+                ResourcePrefix: !Sub
+                    - "${x0}-${x1}"
+                    -
+                        x0: !FindInMap
+                            - Solution
+                            - Project
+                            - LowerCaseId
+                        x1: !Select
+                            - 4
+                            - !Split
+                                - "-"
+                                - !Select
+                                    - 2
+                                    - !Split
+                                        - "/"
+                                        - !Sub "${AWS::StackId}"
+                Email: !Ref Email
+                PriceClass: !Select
+                    - 0
+                    - !Split
+                        - "]"
+                        - !Select
+                            - 1
+                            - !Split
+                                - "["
+                                - !Ref PriceClass
+
+Outputs:
+    DemoPortal:
+        Value: !GetAtt ShotDetectionStack.Outputs.DemoPortal
+        Description: Demo Portal (WebApp)

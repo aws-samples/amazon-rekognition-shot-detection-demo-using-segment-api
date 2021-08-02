@@ -8,6 +8,7 @@
 # include shared configuration file
 source ./common.sh
 
+ACCOUNTID=
 NODEJS_VERSION=$(node --version)
 DEPLOY_DIR="$PWD"
 SOURCE_DIR="$DEPLOY_DIR/../source"
@@ -118,42 +119,52 @@ done
 [ -z "$REGION" ] && \
   REGION="us-east-1"
 
+ACCOUNTID=$(aws sts get-caller-identity | jq .Account | tr -d \")
+[ -z "$ACCOUNTID" ] && \
+  echo "error: fail to get AWS Account ID" && \
+  exit 1
+
 #
 # @function copy_to_bucket
 # @description copy solution to regional bucket
 #
 function copy_to_bucket() {
-  local source=$1
-  local bucket=$2
+  local bucket=$1
+  # full packages deployed to versioned folder
+  local fullPackages=$BUID_DIST_DIR
+  local versionFolder=s3://${bucket}/${SOLUTION}/${VERSION}/
+  # main templates deployed to latest folder
+  local mainTemplate=$TEMPLATE_DIST_DIR
+  local latestFolder=s3://${bucket}/${SOLUTION}/latest/
 
-  aws s3api get-bucket-location \
-  --bucket ${bucket} \
-  --profile ${PROFILE} > /dev/null 2>&1
+  # get bucket region and ensure bucket is owned by the same AWS account. LocationConstraint returns null if bucket is in us-east-1 region
+  local location=$(aws s3api get-bucket-location --bucket ${bucket} --expected-bucket-owner ${ACCOUNTID} | jq .LocationConstraint | tr -d \")
+  [ -z "$location" ] && \
+    echo "Bucket '${bucket}' either doesn't exist or doesn't belong to accountId '${ACCOUNTID}'. exiting..." && \
+    exit 1
+  local region="us-east-1"
+  [ "$location" != "null" ] && \
+    region=$location
 
-  local status=$?
-  [ $status -ne 0 ] && \
-    echo "bucket '${bucket}' not exists. skipping..." && \
-    return 0
-
-  echo "uploading package to '${bucket}' in '${REGION}' (${ACL_SETTING}) [${PROFILE}]..."
-  aws s3 cp $source s3://${bucket}/${SOLUTION}/${VERSION}/ \
-  --recursive \
-  --acl ${ACL_SETTING} \
-  --profile ${PROFILE} \
-  --region ${REGION}
+  # upload artifacts to bucket
+  echo "== Deploy '${SOLUTION} ($VERSION)' package from '${fullPackages}' to '${versionFolder}' in '${region}' [BEGIN] =="
+  if [ "$region" == "us-east-1" ]; then
+    aws s3 cp $fullPackages $versionFolder --recursive --acl ${ACL_SETTING} --profile ${PROFILE}
+    aws s3 cp $mainTemplate $latestFolder --recursive --acl ${ACL_SETTING} --profile ${PROFILE}
+  else
+    aws s3 cp $fullPackages $versionFolder --recursive --acl ${ACL_SETTING} --profile ${PROFILE} --region ${region}
+    aws s3 cp $mainTemplate $latestFolder --recursive --acl ${ACL_SETTING} --profile ${PROFILE} --region ${region}
+  fi
+  echo "== Deploy '${SOLUTION} ($VERSION)' package from '${fullPackages}' to '${versionFolder}' in '${region}' [COMPLETED] =="
 }
 
+#
+# main program
+#
 if [ "$SINGLE_REGION" == "true" ]; then
-  # deploy to a single region
-  echo "** '${SOLUTION} ($VERSION)' package will be deployed to '${BUCKET}' bucket in ${REGION} region **"
-  copy_to_bucket ${BUID_DIST_DIR} "${BUCKET}"
+  copy_to_bucket "${BUCKET}"
 else
-  echo "'${SOLUTION} ($VERSION)' package will be deployed to '${BUCKET}-[region]' buckets: ${REGIONS[*]} regions"
-  # special case, deploy to main bucket (without region suffix)
-  copy_to_bucket ${BUID_DIST_DIR} "${BUCKET}" "us-east-1"
-
-  # now, deploy to regional based buckets
   for region in ${REGIONS[@]}; do
-    copy_to_bucket ${BUID_DIST_DIR} "${BUCKET}-${region}" "${region}"
+    copy_to_bucket "${BUCKET}-${region}"
   done
 fi
