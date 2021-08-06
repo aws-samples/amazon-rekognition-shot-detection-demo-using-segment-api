@@ -2,128 +2,25 @@
 
 This demo solution demostrates how to use [Amazon Rekognition Video Segment Detection](https://docs.aws.amazon.com/rekognition/latest/dg/segments.html) to detect segments _whenever a camera shot has changed_ and technical cues such as _Opening Credits_, _Content_, _End Credits_, _Black Frames_, _Slate_, _Studio Logo_, and _Color Bar_.
 
-The demo solution consists of three components, a backend AWS Step Functions state machine, a frontend web user interface, and an Amazon API Gateway RESTful endpoint. The backend state machine uses AWS Elemental MediaConvert to create proxy video and JPEG thumbnails (for streaming and analysis purposes), and runs Amazon Rekognition Video Segment detection to extract the shot segments and technical cues metadata. The frontend web user interface allows user to upload video(s), monitors the detection process, and view the detection results. The frontend and backend communicate through an RESTful API endpoint created by Amazon API Gateway.
-
 The animated GIFs illustrate how this demo solution works.
-
-__
-
-## Upload, analyze, and visualize detection results
-
-The demo solution allows you to upload, analyze video(s), and visualize the detection through the web portal. After log in to the web portal, simply drag and drop video files to the portal to start the analysis process which starts a workflow to run Amazon Rekognition Segment API to detect the segments and technical cues. Once the video is fully analyzed, you can play the video and visualize the detection results (Shots and Technical Cues) by toggling the _Opening Credit_, _End Credit_, _Shot_, _Content_ buttons. The result is overlay on the video frame. The animated GIF below demonstrates the workflow.
 
 ![Upload, analyze and view detection results](./deployment/images/segment-detection.gif)
 
-__
-
-## Simple convert JSON to EDL format
-
-If you have already run Amazon Rekognition Segment API, you can use the demo solution to convert the Segment JSON result to EDL file format. After log in to the web portal, click on *SimpleConvert* tab. Drag and drop the JSON file to the portal and click on *Start convert* button. Once the JSON file is converted, click on *Download EDL Package* to download the EDL package. The following animated GIF demonstrates how you can convert the JSON file.
-
-![Simple convert JSON to EDL](./deployment/images/simple-convert.gif)
-
-__
-
-## An example of importing EDL to BlackMagic Design Davinci Resolve
-
-Once you download and unzip the EDL package, each of the EDL files can then be imported into NLE tool as a _timeline_ element. The following GIF animation demonstrates how you can import the AI generated EDL file into BlackMagic Design Davinci Resolve. Open Davinci Resolve and create a New Project. Drag and drop the video into the *media pool* area. Click on *File > Import > Timeline* and select one of the EDL files; i.e., shot.edl to import. After importing, all the shot segments are presented in the timeline as elements with frame accuracy. You can navigate the timeline to find individual segment and edit the clip.
-
-An example of importing EDL to [Blackmagic Design Davinci Resolve 17](https://www.blackmagicdesign.com/products/davinciresolve/).
-
-![Export and Import EDL](./deployment/images/import-davinci.gif)
-
-__
-
-## Converting from JSON to Edit Decision List (EDL) CMX3600 Format
-
-To understand how the conversion works, let us take a closer look at the EDL file format and the JSON response of segment response.
-
-### EDL Format
-```
-TITLE: TEARSOFSTEEL 4K
-FCM: NON-DROP FRAME
-
-001  SHOT000  V     C     00:00:00:00 00:00:08:21 00:00:00:00 00:00:08:21
-* FROM CLIP NAME: tearsofsteel_4k.mov
-
-002  SHOT001  V     C     00:00:08:22 00:00:13:10 00:00:08:21 00:00:13:10
-* FROM CLIP NAME: tearsofsteel_4k.mov
-```
-
-where
-
-| | |
-|:-|:-|
-| 001 | Field 1, the edit decision number |
-| SHOT000 | Field 2, the reel number |
-| V | Field 3, the element is in interested. "V" represents "Video only" |
-| C | Field 4, operation of the decision. "C" represents "Cut" |
-| SPACE | Field 5, type of transition. In our case, " " is used for "Cut" operation |
-| 00:00:00:00 | Field 6, source Play IN time |
-| 00:00:08:21 | Field 7, source Play OUT time |
-| 00:00:00:00 | Field 8, source Record IN time. (For our purpose, this field is same as Play IN time.) |
-| 00:00:08:21 | Field 9, source Record OUT time. (For our purpose, this field is same as Play OUT time.) |
-
-Without going into details of the EDL CMX 3600 specification, we can still see that the EDL file contains a list of the decision / transitions (“Cut” for instance) and the timing information such as IN and OUT time.
-
-_
-
-### Amazon Rekognition Segment JSON Result
-Now, let us examine the JSON response from Amazon Rekognition Segment API.
-
-```json
-{
-  "Segments": [
-    ...,
-    {
-      "Type": "SHOT",
-      "StartTimestampMillis": 0,
-      "EndTimestampMillis": 8875,
-      "DurationMillis": 8875,
-      "StartTimecodeSMPTE": "00:00:00:00",
-      "EndTimecodeSMPTE": "00:00:08:21",
-      "DurationSMPTE": "00:00:08:21",
-      "ShotSegment": {
-        "Index": 0,
-        "Confidence": 99.89203643798828
-      }
-    },
-    {
-      "Type": "SHOT",
-      "StartTimestampMillis": 8916,
-      "EndTimestampMillis": 13416,
-      "DurationMillis": 4500,
-      "StartTimecodeSMPTE": "00:00:08:22",
-      "EndTimecodeSMPTE": "00:00:13:10",
-      "DurationSMPTE": "00:00:04:12",
-      "ShotSegment": {
-        "Index": 1,
-        "Confidence": 99.88211059570312
-      }
-    },
-    ...,
-  ]
-}
-
-```
-
-As show above, the JSON response already provides frame accurate, SMPTE start and end timecodes of each detection such as *StartTimecodeSMPTE*, *EndTimecodeSMPTE*, *ShotSegment Index*.
-
-Converting to EDL file format is as simple as mapping the start and end SMPTE timecodes of the detection and formatting it into a compatible EDL CMX3600 decision lines.
-
-![Mapping Segment to EDL](./deployment/images/segment-to-edl.png)
+Check out our blog post, [Streamline content preparation and quality control for VOD platforms using Amazon Rekognition Video](https://aws.amazon.com/blogs/media/streamline-content-preparation-and-quality-control-for-vod-platforms-using-amazon-rekognition-video/) to learn more about the new Segment Version 2 API.
 
 __
 
 # Architecture overview
 
-The solution is designed with [serverless architecture](https://aws.amazon.com/serverless/). The architectural diagram below illustrates an overview of the solution.
+The solution is designed with [serverless architecture](https://aws.amazon.com/serverless/). It consists of three components, a backend AWS Step Functions state machine, a frontend web user interface, and an Amazon API Gateway RESTful endpoint. The backend state machine uses AWS Elemental MediaConvert to create proxy video and JPEG thumbnails (for streaming and analysis purposes), and runs Amazon Rekognition Video Segment detection to extract the shot segments and technical cues metadata. The frontend web user interface allows user to upload video(s), monitors the detection process, and view the detection results. The frontend and backend communicate through an RESTful API endpoint created by Amazon API Gateway.
+
+The architectural diagram below illustrates an overview of the solution.
 
 ![Overview](./deployment/images/shot-detection-architecture.jpg)
 
-User first signs in to the web portal using Amazon Cognito service. The web application is hosted on an Amazon Simple Storage Service (S3), a **web bucket** indicated in the diagram. The web bucket is protected by Amazon CloudFront distribution with [Origin Access Identity (OAID)](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-s3.html) which restricts direct access to the bucket.
+User first signs in to the web portal using Amazon Cognito service. The web application is hosted on an Amazon Simple Storage Service (S3), a ```web bucket``` indicated in the diagram. The web bucket is protected by Amazon CloudFront distribution with [Origin Access Identity (OAID)](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-s3.html) which restricts direct access to the bucket.
 
-Upon sign-in, the user is authenticated and is given a temporary security credential to access limited AWS resources such as permission to call a specific Amazon API Gateway endpoint and permission to upload video(s) to a specific Amazon Simple Storage Service (S3) bucket, the **source bucket**. The source S3 bucket is configured to take advantage of [Amazon S3 Transfer Acceleration](https://docs.aws.amazon.com/AmazonS3/latest/dev/transfer-acceleration.html).
+Upon sign-in, the user is authenticated and is given a temporary security credential to access limited AWS resources such as permission to call a specific Amazon API Gateway endpoint and permission to upload video(s) to a specific Amazon Simple Storage Service (S3) bucket, the ```source bucket```. The source S3 bucket is configured to take advantage of [Amazon S3 Transfer Acceleration](https://docs.aws.amazon.com/AmazonS3/latest/dev/transfer-acceleration.html).
 
 The analysis workflow can only be accessed through Amazon API Gateway endpoint where the incoming requests are authenticated with AWS_IAM, the temporary security credential. The API endpoint invokes a lambda function to handle the incoming requests.
 
@@ -135,7 +32,7 @@ Learn more about the implementation of:
 * [Webapp Component](./source/webapp/README.md)
 * [Custom Resources Component used by AWS CloudFormation stack](./source/custom-resources/README.md)
 
-___
+__
 
 # Launching solution with Pre-built AWS CloudFormation Template
 
@@ -149,7 +46,8 @@ The solution is deployed using an AWS CloudFormation template with AWS Lambda ba
 | US West (Oregon) |<a href="https://console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/new?stackName=segment-detection&templateURL=https%3A%2F%2Fmediaent-solution-us-west-2.s3.us-west-2.amazonaws.com%2Fshot-detection-demo%2Flatest%2Fmain.template" target="_blank">Launch stack</a> |
 | Asia Pacific (Tokyo) |<a href="https://console.aws.amazon.com/cloudformation/home?region=ap-northeast-1#/stacks/new?stackName=segment-detection&templateURL=https%3A%2F%2Fmediaent-solution-ap-northeast-1.s3.ap-northeast-1.amazonaws.com%2Fshot-detection-demo%2Flatest%2Fmain.template" target="_blank">Launch stack</a> |
 
-_
+
+__
 
 * Under **Create stack** page, click **Next** to continue
 
@@ -167,16 +65,16 @@ The stack creation takes roughly 15 minutes to complete the stack as Amazon Clou
 
 __
 
-After the stack is created (~15 minutes), you should receive an invitation email from no-reply@verificationmail.com. The email contains an Amazon CloudFront URL link to access the demo portal, your login username, and a temporary password.
+After the stack is created (~15 minutes), you should receive an invitation email from ```no-reply@verificationmail.com```. The email contains an Amazon CloudFront URL link to access the demo portal, your login username, and a temporary password.
 
 ![Inviation email](./deployment/images/invitation-email.jpg)
 
-___
+__
 
 # Building and customizing the solution
 
 ## Build Environment
-The sample code is written in NodeJS v10.x. Before you start, please make sure NodeJS has been installed. You would also need to create an Amazon Simple Storage Service (Amazon S3) bucket to store the build artifacts. 
+The sample code is written in NodeJS v14.x. Before you start, please make sure NodeJS has been installed. You would also need to create an Amazon Simple Storage Service (Amazon S3) bucket to store the build artifacts. 
 
 
 ### NodeJS
@@ -204,7 +102,7 @@ aws configure
 
 Create a S3 bucket to store the build artifacts: AWS CloudFormation (CFN) templates and Amazon Lambda packages.
 
-Note: make sure to choose the region you intend to run the workflow; for example, us-east-1 region.
+Note: make sure to choose the region you intend to run the workflow; for example, ```us-east-1``` region.
 
 
 __
@@ -246,7 +144,7 @@ Make sure you see the following files under **/shot-detection-demo/2.0.0/**
 | Name | Description |
 |:---  |:------------|
 | main.template | main cloudformation template to create the solution |
-| shot-detection-demo.template | template to create resources |
+| shot-detection-stack.template | template to create resources |
 | shot-detection-demo-custom-resources-2.0.0.zip | a package of custom resource lambda function used by cloudformation template |
 | shot-detection-demo-api-2.0.0.zip | a package of lambad functiom that handles GET, POST, and OPTIONS requests from Amazon API Gateway endpoint |
 | shot-detection-demo-core-lib-2.0.0.zip | a lambda layer package of the core library shared among other lambda functions |
@@ -255,7 +153,9 @@ Make sure you see the following files under **/shot-detection-demo/2.0.0/**
 | shot-detection-demo-status-updater-2.0.0.zip | a package of lambda function to receive events from Amazon CloudWatch Event and Amazon Simple Notification Service (SNS) and to send task result signaling the AWS Step Functions state machine execution when a task is completed or failed. |
 | shot-detection-demo-webapp-2.0.0.zip | a package of the webapp code |
 
-___
+
+__
+
 
 # Launching your customized solution
 
@@ -293,7 +193,8 @@ aws cloudformation create-stack \
 
 ```
 
-___
+__
+
 
 # Deleting the demo solution
 To delete the demo solution, simply delete the CloudFormation stack that was deployed earlier.
@@ -303,7 +204,8 @@ To delete the demo solution, simply delete the CloudFormation stack that was dep
 * Amazon S3 bucket (source)
 * Amazon S3 bucket (logs)
 
-___
+__
+
 
 # Security
 
@@ -316,7 +218,8 @@ AWS highly recommends that customers encrypt sensitive data in transit and at re
 ## Amazon CloudFront
 This demo solution deploys a static website [hosted](https://docs.aws.amazon.com/AmazonS3/latest/dev/WebsiteHosting.html) in an Amazon S3 bucket. To help reduce latency and improve security, this solution includes an Amazon CloudFront distribution with an origin access identity, which is a special CloudFront user that helps restrict access to the solution’s website bucket contents. For more information, see [Restricting Access to Amazon S3 Content by Using an Origin Access Identity](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-s3.html).
 
-___
+__
+
 
 # Cost Estimation
 The solution uses various AWS services. Please make sure to check the pricing for each of the services.
@@ -370,7 +273,8 @@ The cost of Amazon Cognito and AWS CloudFormation are not included in the estima
   * [Quality Defined Variable Bitrat (QVBR)](https://aws.amazon.com/media/tech/quality-defined-variable-bitrate-qvbr/) to optimize quality and file size and
   * QuickTime output format to carry SMPTE Timecode from original content
 
-___
+__
+
 
 # Supported Regions
 
@@ -390,7 +294,8 @@ Amazon Rekognition Video Segment API is supported in the following regions:
 
 Make sure to check [AWS Region Table](https://aws.amazon.com/about-aws/global-infrastructure/regional-product-services/) for any updated region support for the service.
 
-___
+__
+
 
 # Resources
 
@@ -425,7 +330,8 @@ The solution uses the following AWS resources:
   * IAM Roles for the custom resource and the Lambda function
 * [AWS CloudFormation](https://aws.amazon.com/cloudformation/)
 
-___
+__
+
 
 # Attributions
 
@@ -433,7 +339,8 @@ Images and videos used in this README are courtesy of the Blender Foundation, sh
 
 Tears of Steel: (CC) Blender Foundation | [mango.blender.org](https://mango.blender.org/)
 
-___
+__
+
 
 # License
 
