@@ -273,10 +273,16 @@ Resources:
             LifecycleConfiguration:
                 Rules:
                     -
-                        Id: Keep access logs for 1 day
+                        Id: Keep access logs for 7 day
                         Status: Enabled
                         Prefix: /
-                        ExpirationInDays: 1
+                        ExpirationInDays: 7
+                        AbortIncompleteMultipartUpload:
+                            DaysAfterInitiation: 1
+                    -
+                        Id: Keep previous version for 1 day
+                        Status: Enabled
+                        NoncurrentVersionExpirationInDays: 1
                         AbortIncompleteMultipartUpload:
                             DaysAfterInitiation: 1
             Tags:
@@ -284,7 +290,7 @@ Resources:
                     Key: SolutionId
                     Value: !Ref SolutionId
             VersioningConfiguration:
-                Status: Suspended
+                Status: Enabled
 
     LogsBucketPolicy:
         Type: AWS::S3::BucketPolicy
