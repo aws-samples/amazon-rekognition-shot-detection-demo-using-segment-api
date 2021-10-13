@@ -301,11 +301,13 @@ Resources:
                     -
                         Effect: Deny
                         Principal: "*"
-                        Action: "*"
-                        Resource: !Sub "arn:aws:s3:::${LogsBucket}/*"
+                        Action: "s3:*"
+                        Resource:
+                            - !Sub "arn:aws:s3:::${LogsBucket}"
+                            - !Sub "arn:aws:s3:::${LogsBucket}/*"
                         Condition:
                             Bool:
-                                "aws:SecureTransport": false
+                                aws:SecureTransport: false
 
     SourceBucket:
         Type: AWS::S3::Bucket
@@ -373,11 +375,13 @@ Resources:
                     -
                         Effect: Deny
                         Principal: "*"
-                        Action: "*"
-                        Resource: !Sub "arn:aws:s3:::${SourceBucket}/*"
+                        Action: "s3:*"
+                        Resource:
+                            - !Sub "arn:aws:s3:::${SourceBucket}"
+                            - !Sub "arn:aws:s3:::${SourceBucket}/*"
                         Condition:
                             Bool:
-                                "aws:SecureTransport": false
+                                aws:SecureTransport: false
                     # Amazon Rekognition Custom Labels specific
                     -
                         Effect: Allow
@@ -1631,11 +1635,13 @@ Resources:
                     -
                         Effect: Deny
                         Principal: "*"
-                        Action: "*"
-                        Resource: !Sub "arn:aws:s3:::${WebBucket}/*"
+                        Action: "s3:*"
+                        Resource:
+                            - !Sub "arn:aws:s3:::${WebBucket}"
+                            - !Sub "arn:aws:s3:::${WebBucket}/*"
                         Condition:
                             Bool:
-                                "aws:SecureTransport": false
+                                aws:SecureTransport: false
                     -
                         Effect: Allow
                         Action: s3:GetObject
