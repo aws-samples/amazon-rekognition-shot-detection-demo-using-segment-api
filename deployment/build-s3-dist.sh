@@ -420,7 +420,6 @@ function build_webapp_dependencies() {
     "bootstrap-bundle" \
     "fontawesome-bundle" \
     "jquery-bundle" \
-    "popper-bundle" \
     "crypto-js-bundle" \
   )
   for bundle in ${bundles[@]}

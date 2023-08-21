@@ -269,7 +269,6 @@ Resources:
                     -
                       ServerSideEncryptionByDefault:
                           SSEAlgorithm: AES256
-            AccessControl: LogDeliveryWrite
             LifecycleConfiguration:
                 Rules:
                     -
@@ -290,7 +289,19 @@ Resources:
                     Key: SolutionId
                     Value: !Ref SolutionId
             VersioningConfiguration:
-                Status: Enabled
+                Status: Suspended
+            PublicAccessBlockConfiguration:
+                BlockPublicAcls: true
+                BlockPublicPolicy: true
+                IgnorePublicAcls: true
+                RestrictPublicBuckets: true
+            # Note: Needed to enable ACL so that Amazon CloudFront
+            # can write logs to the bucket. Refer to
+            # https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/AccessLogs.html#access-logs-choosing-s3-bucket
+            AccessControl: LogDeliveryWrite
+            OwnershipControls:
+                Rules:
+                    - ObjectOwnership: BucketOwnerPreferred
 
     LogsBucketPolicy:
         Type: AWS::S3::BucketPolicy
@@ -308,6 +319,16 @@ Resources:
                         Condition:
                             Bool:
                                 aws:SecureTransport: false
+                    -
+                        Sid: S3ServerAccessLogsPolicy
+                        Effect: Allow
+                        Principal:
+                            Service: logging.s3.amazonaws.com
+                        Action: s3:PutObject
+                        Resource: !Sub ${LogsBucket.Arn}/*
+                        Condition:
+                            StringEquals:
+                                aws:SourceAccount: !Ref AWS::AccountId
 
     SourceBucket:
         Type: AWS::S3::Bucket
@@ -322,7 +343,6 @@ Resources:
                           SSEAlgorithm: AES256
             AccelerateConfiguration:
                 AccelerationStatus: Enabled
-            AccessControl: LogDeliveryWrite
             LoggingConfiguration:
                 DestinationBucketName: !Ref LogsBucket
                 LogFilePrefix: "access_logs_source_bucket/"
@@ -365,6 +385,11 @@ Resources:
                     Value: !Ref SolutionId
             VersioningConfiguration:
                 Status: Enabled
+            PublicAccessBlockConfiguration:
+                BlockPublicAcls: true
+                BlockPublicPolicy: true
+                IgnorePublicAcls: true
+                RestrictPublicBuckets: true
 
     SourceBucketPolicy:
         Type: AWS::S3::BucketPolicy
@@ -1567,7 +1592,6 @@ Resources:
                     -
                       ServerSideEncryptionByDefault:
                           SSEAlgorithm: AES256
-            AccessControl: LogDeliveryWrite
             LoggingConfiguration:
                 DestinationBucketName: !Ref LogsBucket
                 LogFilePrefix: "access_logs_web_bucket/"
@@ -1613,6 +1637,11 @@ Resources:
                     Value: !Ref SolutionId
             VersioningConfiguration:
                 Status: Enabled
+            PublicAccessBlockConfiguration:
+                BlockPublicAcls: true
+                BlockPublicPolicy: true
+                IgnorePublicAcls: true
+                RestrictPublicBuckets: true
 
     OriginAccessIdentity:
         Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
