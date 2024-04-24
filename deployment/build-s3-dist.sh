@@ -134,21 +134,8 @@ function install_dev_dependencies() {
   echo "------------------------------------------------------------------------------"
   echo "Install node package dependencies"
   echo "------------------------------------------------------------------------------"
-  pushd "$SOURCE_DIR"
-  npm install -g \
-    aws-sdk \
-    aws-sdk-mock \
-    chai \
-    eslint \
-    eslint-config-airbnb-base \
-    eslint-plugin-import \
-    browserify \
-    terser \
-    mocha \
-    nock \
-    npm-run-all \
-    sinon \
-    sinon-chai
+  pushd "$DEPLOY_DIR/.."
+  npm install --include=dev
   popd
 }
 
@@ -371,7 +358,7 @@ function minify_jscript() {
   echo "------------------------------------------------------------------------------"
   local file=$1
   pushd "$SOURCE_DIR/build"
-  npm install --production
+  npm install --omit=dev
   node post-build.js minify --dir "$file"
   [ $? -ne 0 ] && exit 1
   popd
@@ -388,7 +375,7 @@ function compute_jscript_integrity() {
   echo "------------------------------------------------------------------------------"
   local file=$1
   pushd "$SOURCE_DIR/build"
-  npm install --production
+  npm install --omit=dev
   node post-build.js inject-sri --html "$file"
   [ $? -ne 0 ] && exit 1
   popd
@@ -402,7 +389,7 @@ function build_thirdparty_bundle() {
   local bundle_dir="$SOURCE_DIR/webapp/third_party/$bundle"
 
   pushd "$bundle_dir"
-  npm install --production
+  npm install --omit=dev
   npm run build
   [ $? -ne 0 ] && exit 1
   popd

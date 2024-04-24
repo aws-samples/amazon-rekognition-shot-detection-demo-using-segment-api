@@ -14,6 +14,7 @@ DEPLOY_DIR="$PWD"
 SOURCE_DIR="$DEPLOY_DIR/../source"
 TEMPLATE_DIST_DIR="global-s3-assets"
 BUID_DIST_DIR="regional-s3-assets"
+MAIN_TEMPLATE="main.template"
 
 #
 # @function usage
@@ -142,20 +143,44 @@ function copy_to_bucket() {
   [ -z "$location" ] && \
     echo "Bucket '${bucket}' either doesn't exist or doesn't belong to accountId '${ACCOUNTID}'. exiting..." && \
     exit 1
+
   local region="us-east-1"
   [ "$location" != "null" ] && \
     region=$location
 
+  local domain="s3.amazonaws.com"
+  local optionalFlag="--acl ${ACL_SETTING} --profile ${PROFILE}"
+
+  if [ "$region" != "us-east-1" ]; then
+    domain=s3.${region}.amazonaws.com
+    optionalFlag="${optionalFlag} --region ${region}"
+  fi
+
   # upload artifacts to bucket
   echo "== Deploy '${SOLUTION} ($VERSION)' package from '${fullPackages}' to '${versionFolder}' in '${region}' [BEGIN] =="
-  if [ "$region" == "us-east-1" ]; then
-    aws s3 cp $fullPackages $versionFolder --recursive --acl ${ACL_SETTING} --profile ${PROFILE}
-    aws s3 cp $mainTemplate $latestFolder --recursive --acl ${ACL_SETTING} --profile ${PROFILE}
-  else
-    aws s3 cp $fullPackages $versionFolder --recursive --acl ${ACL_SETTING} --profile ${PROFILE} --region ${region}
-    aws s3 cp $mainTemplate $latestFolder --recursive --acl ${ACL_SETTING} --profile ${PROFILE} --region ${region}
-  fi
+  aws s3 cp $fullPackages $versionFolder --recursive $optionalFlag
+  aws s3 cp $mainTemplate $latestFolder --recursive $optionalFlag
   echo "== Deploy '${SOLUTION} ($VERSION)' package from '${fullPackages}' to '${versionFolder}' in '${region}' [COMPLETED] =="
+
+  local url="https://${bucket}.${domain}/${SOLUTION}/${VERSION}/${MAIN_TEMPLATE}"
+  local latestUrl="https://${bucket}.${domain}/${SOLUTION}/latest/${MAIN_TEMPLATE}"
+
+  echo "== (VERSIONED URL) ============================"
+  echo ""
+  echo "HTTPS URL:"
+  echo "$url"
+  echo ""
+  echo "One-click URL to create stack:"
+  echo "https://console.aws.amazon.com/cloudformation/home?region=${region}#/stacks/quickcreate?templateURL=${url}&stackName=shot-segment"
+  echo ""
+
+  echo "== (LATEST URL) ==============================="
+  echo ""
+  echo "$latestUrl"
+  echo ""
+  echo "One-click URL to create stack:"
+  echo "https://console.aws.amazon.com/cloudformation/home?region=${region}#/stacks/quickcreate?templateURL=${latestUrl}&stackName=shot-segment"
+  echo ""
 }
 
 #

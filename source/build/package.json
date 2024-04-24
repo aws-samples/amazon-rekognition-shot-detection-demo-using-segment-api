@@ -5,11 +5,10 @@
   "main": "index.js",
   "private": true,
   "dependencies": {
-    "glob": "^7.1.6",
-    "terser": "^4.7.0"
+    "glob": "^7.2.3",
+    "terser": "^4.8.1"
   },
   "scripts": {},
   "author": "aws-specialist-sa-emea",
-  "license": "MIT-0",
-  "devDependencies": {}
+  "license": "MIT-0"
 }

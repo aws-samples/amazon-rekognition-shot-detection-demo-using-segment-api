@@ -5,14 +5,14 @@
   "main": "index.js",
   "private": true,
   "dependencies": {
-    "crypto-js": "^4.0.0"
+    "crypto-js": "^4.2.0"
   },
   "scripts": {
     "pretest": "npm install",
     "test": "mocha *.spec.js",
     "build:clean": "rm -rf dist && mkdir -p dist",
     "build:copy": "cp -rv index.js package.json shared states dist/",
-    "build:install": "cd dist && npm install --production",
+    "build:install": "cd dist && npm install --omit=dev",
     "build": "npm-run-all -s build:clean build:copy build:install",
     "zip": "cd dist && zip -rq"
   },

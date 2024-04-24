@@ -5,7 +5,7 @@
   "main": "index.js",
   "private": true,
   "dependencies": {
-    "adm-zip": "^0.5.5",
+    "adm-zip": "^0.5.12",
     "mime": "^3.0.0"
   },
   "scripts": {
@@ -13,10 +13,9 @@
     "test": "echo \"core-lib wraps common classes. skipping unit test...\"",
     "build:clean": "rm -rf dist && mkdir -p dist/nodejs/node_modules/core-lib",
     "build:copy": "cp -rv index*.js package.json lib dist/nodejs/node_modules/core-lib",
-    "build:install": "cd dist/nodejs/node_modules/core-lib && npm install --production",
+    "build:install": "cd dist/nodejs/node_modules/core-lib && npm install --omit=dev",
     "build": "npm-run-all -s build:clean build:copy build:install",
     "zip": "cd dist && zip -rq"
   },
-  "author": "aws-specialist-sa-emea",
-  "devDependencies": {}
+  "author": "aws-specialist-sa-emea"
 }

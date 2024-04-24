@@ -33,7 +33,7 @@ Mappings:
             SortKey: keyword
     Node:
         Runtime:
-            Version: nodejs14.x
+            Version: nodejs20.x
 
 Parameters:
     S3Bucket:
@@ -241,6 +241,8 @@ Resources:
                         - Solution
                         - Package
                         - CustomResourceX
+            Layers:
+                - !Ref AwsSdkLayer
             Tags:
                 -
                     Key: SolutionId
@@ -449,7 +451,10 @@ Resources:
         Properties:
             LayerName: !Sub "${ResourcePrefix}-layer-aws-sdk"
             CompatibleRuntimes:
-                - nodejs14.x
+                - !FindInMap
+                    - Node
+                    - Runtime
+                    - Version
             Content:
                 S3Bucket: !Ref S3Bucket
                 S3Key: !Sub
@@ -466,7 +471,10 @@ Resources:
         Properties:
             LayerName: !Sub "${ResourcePrefix}-layer-core-lib"
             CompatibleRuntimes:
-                - nodejs14.x
+                - !FindInMap
+                    - Node
+                    - Runtime
+                    - Version
             Content:
                 S3Bucket: !Ref S3Bucket
                 S3Key: !Sub
@@ -483,7 +491,10 @@ Resources:
         Properties:
             LayerName: !Sub "${ResourcePrefix}-layer-mediainfo"
             CompatibleRuntimes:
-                - nodejs14.x
+                - !FindInMap
+                    - Node
+                    - Runtime
+                    - Version
             Content:
                 S3Bucket: !Ref S3Bucket
                 S3Key: !Sub

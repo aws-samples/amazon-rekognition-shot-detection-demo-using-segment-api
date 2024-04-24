@@ -38,14 +38,13 @@ __
 
 The solution is deployed using an AWS CloudFormation template with AWS Lambda backed custom resources. To deploy the solution, use one of the following CloudFormation templates and follows the instructions.
 
-| AWS Region | AWS CloudFormation Template URL |
-|:-----------|:----------------------------|
-| EU (Ireland) |<a href="https://console.aws.amazon.com/cloudformation/home?region=eu-west-1#/stacks/new?stackName=segment-detection&templateURL=https%3A%2F%2Fmediaent-solution-eu-west-1.s3.eu-west-1.amazonaws.com%2Fshot-detection-demo%2Flatest%2Fmain.template" target="_blank">Launch stack</a> |
-| US East (N. Virginia) |<a href="https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/new?stackName=segment-detection&templateURL=https%3A%2F%2Fmediaent-solution-us-east-1.s3.amazonaws.com%2Fshot-detection-demo%2Flatest%2Fmain.template" target="_blank">Launch stack</a> |
-| US East (Ohio) |<a href="https://console.aws.amazon.com/cloudformation/home?region=us-east-2#/stacks/new?stackName=segment-detection&templateURL=https%3A%2F%2Fmediaent-solution-us-east-2.s3.us-east-2.amazonaws.com%2Fshot-detection-demo%2Flatest%2Fmain.template" target="_blank">Launch stack</a> |
-| US West (Oregon) |<a href="https://console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/new?stackName=segment-detection&templateURL=https%3A%2F%2Fmediaent-solution-us-west-2.s3.us-west-2.amazonaws.com%2Fshot-detection-demo%2Flatest%2Fmain.template" target="_blank">Launch stack</a> |
-| Asia Pacific (Tokyo) |<a href="https://console.aws.amazon.com/cloudformation/home?region=ap-northeast-1#/stacks/new?stackName=segment-detection&templateURL=https%3A%2F%2Fmediaent-solution-ap-northeast-1.s3.ap-northeast-1.amazonaws.com%2Fshot-detection-demo%2Flatest%2Fmain.template" target="_blank">Launch stack</a> |
-
+|Region|1-click Quick Deploy|Template URL|
+|:--|:--|:--|
+|US East (N. Virginia)|<a href="https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/quickcreate?templateURL=https://awsi-megs-guidances-us-east-1.s3.amazonaws.com/shot-detection-demo/latest/main.template&stackName=shot-segment" target="_blank">Launch stack</a>|https://awsi-megs-guidances-us-east-1.s3.amazonaws.com/shot-detection-demo/latest/main.template|
+|US East (Ohio)  |<a href="https://console.aws.amazon.com/cloudformation/home?region=us-east-2#/stacks/quickcreate?templateURL=https://awsi-megs-guidances-us-east-2.s3.us-east-2.amazonaws.com/shot-detection-demo/latest/main.template&stackName=shot-segment" target="_blank">Launch stack</a>|https://awsi-megs-guidances-us-east-2.s3.us-east-2.amazonaws.com/shot-detection-demo/latest/main.template|
+|US West (Oregon)|<a href="https://console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/quickcreate?templateURL=https://awsi-megs-guidances-us-west-2.s3.us-west-2.amazonaws.com/shot-detection-demo/latest/main.template&stackName=shot-segment" target="_blank">Launch stack</a>|https://awsi-megs-guidances-us-west-2.s3.us-west-2.amazonaws.com/shot-detection-demo/latest/main.template|
+|Europe (Ireland)|<a href="https://console.aws.amazon.com/cloudformation/home?region=eu-west-1#/stacks/quickcreate?templateURL=https://awsi-megs-guidances-eu-west-1.s3.eu-west-1.amazonaws.com/shot-detection-demo/latest/main.template&stackName=shot-segment" target="_blank">Launch stack</a>|https://awsi-megs-guidances-eu-west-1.s3.eu-west-1.amazonaws.com/shot-detection-demo/latest/main.template|
+|Asia Pacific (Tokyo)|<a href="https://console.aws.amazon.com/cloudformation/home?region=ap-northeast-1#/stacks/quickcreate?templateURL=https://awsi-megs-guidances-ap-northeast-1.s3.ap-northeast-1.amazonaws.com/shot-detection-demo/latest/main.template&stackName=shot-segment" target="_blank">Launch stack</a>|https://awsi-megs-guidances-ap-northeast-1.s3.ap-northeast-1.amazonaws.com/shot-detection-demo/latest/main.template|
 
 __
 
@@ -74,11 +73,11 @@ __
 # Building and customizing the solution
 
 ## Build Environment
-The sample code is written in NodeJS v14.x. Before you start, please make sure NodeJS has been installed. You would also need to create an Amazon Simple Storage Service (Amazon S3) bucket to store the build artifacts. 
+The sample code is written in NodeJS v20.x. Before you start, please make sure NodeJS has been installed. You would also need to create an Amazon Simple Storage Service (Amazon S3) bucket to store the build artifacts. 
 
 
 ### NodeJS
-Make sure you install NodeJS 14.x onto your system.
+Make sure you install NodeJS 20.x onto your system.
 
 For MAC user, download and install from [nodejs.org](https://nodejs.org/en/download/). Alternatively, you can also use Homebrew.
 
